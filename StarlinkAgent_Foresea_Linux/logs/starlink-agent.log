@@ -1,0 +1,6 @@
+2026-08-28 13:57:12,500 | INFO | Banco vazio. Tentando carga inicial pelo CSV mais recente: /mnt/data/starlink_v090_work/StarlinkAgent_Foresea_Linux/data/raw/Starlink_Fleet_Usage_2c56a7f1_2026-08-01_to_2026-08-27.csv
+2026-08-28 13:57:12,504 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 13:57:12,523 | INFO | Carga inicial via CSV concluida: unidades=8 snapshots_novos=8
+2026-08-28 13:57:43,400 | INFO | Banco vazio. Tentando carga inicial pelo CSV local: /mnt/data/starlink_v090_work/StarlinkAgent_Foresea_Linux/data/raw/Starlink_Fleet_Usage_2c56a7f1_2026-08-01_to_2026-08-27.csv
+2026-08-28 13:57:43,405 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 13:57:43,426 | INFO | Carga inicial via CSV concluida: unidades=8 snapshots_novos=8

@@ -1,5 +1,5 @@
 [Unit]
-Description=Foresea Starlink Consumption Agent v0.8.2
+Description=Foresea Starlink Consumption Agent v0.9.0
 Wants=network-online.target
 After=network-online.target
 
@@ -11,7 +11,8 @@ WorkingDirectory=@@INSTALL_DIR@@
 EnvironmentFile=/etc/starlink-agent/secrets.env
 Environment=PYTHONUNBUFFERED=1
 Environment=PLAYWRIGHT_BROWSERS_PATH=@@INSTALL_DIR@@/.playwright
-ExecStart=@@INSTALL_DIR@@/.venv/bin/python @@INSTALL_DIR@@/agent.py
+ExecStart=/usr/bin/flock -w 360 @@INSTALL_DIR@@/data/collection.lock @@INSTALL_DIR@@/.venv/bin/python @@INSTALL_DIR@@/agent.py
+TimeoutStartSec=8min
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true

@@ -36,6 +36,23 @@ for mod in mods:
     except Exception as exc:
         print(f"  ERRO {mod}: {exc}")
 PY
+
+  echo
+  echo "Teste ReportLab PDF:"
+  "$INSTALL_DIR/.venv/bin/python" - <<'PY'
+import os, tempfile
+try:
+    from reportlab.pdfgen import canvas
+    fd, path = tempfile.mkstemp(prefix="starlink-diag-", suffix=".pdf")
+    os.close(fd)
+    c = canvas.Canvas(path)
+    c.drawString(72, 800, "diag")
+    c.save()
+    print("  OK   geracao PDF")
+    os.remove(path)
+except Exception as exc:
+    print(f"  ERRO geracao PDF: {exc}")
+PY
 else
   echo "ERRO: virtualenv nao encontrado em $INSTALL_DIR/.venv"
 fi
