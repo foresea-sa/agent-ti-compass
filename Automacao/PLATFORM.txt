@@ -1,0 +1,4 @@
+LINUX
+Starlink Consumption Agent Foresea v0.8.1
+Suporte recomendado: Ubuntu Server 22.04/24.04 LTS x86_64.
+Agendamento e servicos: systemd.
