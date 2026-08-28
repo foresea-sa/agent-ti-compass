@@ -1,4 +1,4 @@
-FORESEA STARLINK AGENT v0.9.2 - LINUX
+FORESEA STARLINK AGENT v0.9.3 - LINUX
 ==================================
 1. chmod +x install-linux.sh
 2. sudo ./install-linux.sh
@@ -11,7 +11,7 @@ FORESEA STARLINK AGENT v0.9.2 - LINUX
 
 Guia completo: LINUX_PASSO_A_PASSO.txt
 
-IMPORTANTE - v0.9.2
+IMPORTANTE - v0.9.3
 O instalador Linux agora detecta automaticamente a versao do sistema operacional e do Python.
 Em Ubuntu 20.04/Python 3.8, NAO e necessario editar requirements manualmente: o perfil legacy sera selecionado automaticamente.
 Use: sudo ./install-linux.sh

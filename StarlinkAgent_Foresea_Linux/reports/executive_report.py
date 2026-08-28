@@ -587,16 +587,17 @@ def _footer(canvas, doc):
     canvas.line(18 * mm, 10 * mm, 279 * mm, 10 * mm)
     canvas.setFont("Helvetica", 7)
     canvas.setFillColor(colors.HexColor("#71808A"))
-    canvas.drawString(18 * mm, 6 * mm, "Starlink Consumption Agent v0.9.2 | periodo Compass + historico SQLite + previsao")
+    canvas.drawString(18 * mm, 6 * mm, "Starlink Consumption Agent v0.9.3 | periodo Compass + historico SQLite + previsao")
     canvas.drawRightString(279 * mm, 6 * mm, f"Pagina {doc.page}")
     canvas.restoreState()
 
 
-def generate_pdf(rows, config=None):
+def generate_pdf(rows, config=None, output_path=None):
     config = config or {}
     company = config.get("company", "Foresea")
     date_tag = datetime.now().strftime("%Y-%m-%d")
-    path = OUTPUT / f"Relatorio_Executivo_Starlink_{date_tag}.pdf"
+    path = Path(output_path) if output_path else OUTPUT / f"Relatorio_Executivo_Starlink_{date_tag}.pdf"
+    path.parent.mkdir(parents=True, exist_ok=True)
     doc = SimpleDocTemplate(str(path), pagesize=landscape(A4), rightMargin=16 * mm, leftMargin=16 * mm, topMargin=12 * mm, bottomMargin=15 * mm)
     styles = _pdf_styles()
     sorted_rows = _sorted(rows)

@@ -1,0 +1,20 @@
+DASHBOARD v0.9.3
+
+1. CAPA
+   http://SERVIDOR:8787/
+   Exibe um card por localidade com consumo atual, franquia, uso, media diaria, risco e saldo.
+
+2. UNIDADE
+   Clique no card ou acesse http://SERVIDOR:8787/unidade/N09
+   Exibe somente os dados daquela unidade e o historico do ciclo.
+   O botao Baixar PDF gera um relatorio executivo apenas da unidade.
+
+3. ANALISE CONSOLIDADA
+   http://SERVIDOR:8787/analise-consolidada
+   Nao existe link para essa pagina na capa ou no dashboard de unidade.
+   O caminho pode ser alterado em dashboard.consolidated_path.
+   ATENCAO: rota escondida nao equivale a autenticacao.
+
+4. APOS ATUALIZAR
+   sudo systemctl restart starlink-dashboard.service
+   Depois use Ctrl+F5 no navegador.
