@@ -8,3 +8,11 @@ SEGURANCA - LINUX
 6. Os servicos usam NoNewPrivileges=true e PrivateTmp=true.
 7. Mantenha o Ubuntu e os pacotes Python atualizados em janela controlada.
 8. Se Microsoft Graph for habilitado, restrinja a App Registration ao minimo necessario.
+
+CADDY / HTTPS (v0.9.4)
+- O dashboard deve escutar somente em 127.0.0.1:8787.
+- Exponha 443/TCP; 80/TCP somente se o redirect HTTP->HTTPS for desejado.
+- Proteja /analise-consolidada e /api/consolidated-dashboard com Basic Auth.
+- O hash bcrypt pode permanecer no Caddyfile; a senha em texto puro nao e persistida pelo configurador.
+- Em tls internal, distribua somente root.crt. Nunca copie ou compartilhe a chave privada da CA (root.key).
+- Para producao corporativa, prefira certificado emitido pela PKI/CA corporativa quando disponivel.

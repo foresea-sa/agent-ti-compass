@@ -15,4 +15,10 @@ systemctl enable --now starlink-dashboard.service
 systemctl restart starlink-dashboard.service
 systemctl --no-pager --full status starlink-agent.timer || true
 systemctl --no-pager --full status starlink-dashboard.service || true
-echo "Dashboard: http://127.0.0.1:8787"
+if [[ -f /etc/starlink-agent/caddy-profile.env ]]; then
+  . /etc/starlink-agent/caddy-profile.env
+  echo "Dashboard HTTPS: https://${CADDY_HOST:-hostname}/"
+else
+  echo "Dashboard local: http://127.0.0.1:8787"
+  echo "Para publicar em HTTPS :443: sudo /opt/starlink-agent/configure-caddy-linux.sh"
+fi
