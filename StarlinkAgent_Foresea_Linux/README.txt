@@ -48,3 +48,10 @@ Documentacao completa: LINUX_PASSO_A_PASSO.txt
 v0.9.0 Linux - video de diagnostico
 O teste de login grava a navegacao headless e gera um MP4 compacto em logs/debug/videos.
 Use: sudo /opt/starlink-agent/last-video-linux.sh
+
+v0.9.1 - Correcao de GB/dia
+----------------------------
+O ritmo de consumo nao usa mais o intervalo do nome do CSV como divisor do acumulado.
+Para sincronizar todos os CSVs existentes em data/raw e atualizar o dashboard:
+  sudo /opt/starlink-agent/sync-history-linux.sh
+Detalhes: CORRECAO_v0.9.1_GB_DIA.txt

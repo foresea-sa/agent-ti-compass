@@ -36,7 +36,7 @@
   <section class="panel alerts"><div class="panel-head"><h2>Alertas e previsão de franquia</h2><span class="subtitle">Prioriza estouro atual, previsto e risco alto</span></div><div id="alerts"></div></section>
 
   <section class="panel table-panel"><div class="panel-head"><h2>Visão consolidada por unidade</h2><span id="generatedAt" class="subtitle"></span></div><table class="table"><thead><tr><th>Unidade</th><th>Periodo</th><th>Consumo</th><th>Franquia</th><th>Uso</th><th>Status</th><th>GB/dia</th><th>Tendência</th><th>Risco</th><th>Confianca</th><th>Data 100%</th><th>Fim ciclo</th><th>Overage proj.</th><th>Dados</th><th>Service Line</th></tr></thead><tbody id="unitTable"></tbody></table></section>
-  <div class="footer"><span><span class="dot"></span>Dashboard local v0.8</span><span id="autoRefresh">Atualização automática</span></div>
+  <div class="footer"><span><span class="dot"></span>Dashboard local v0.9.1</span><span id="autoRefresh">Atualização automática</span></div>
 </div>
 <script>
 let days=7, data=null, selectedUnit=null, timer=null;
@@ -45,6 +45,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const gb=v=>{v=Number(v||0);return v>=1000?(v/1000).toFixed(2)+' TB':v.toFixed(0)+' GB'};
 const pct=v=>Number(v||0).toFixed(1)+'%';
 const num=v=>Number(v||0).toFixed(1);
+const rate=u=>{if(u.rate_gb_day===null||u.rate_gb_day===undefined||u.projection_method==='AGUARDANDO HISTORICO')return '--';const prefix=u.projection_method==='HISTORICO'?'':'~';return prefix+num(u.rate_gb_day)};
 const dateBR=v=>{if(!v)return '-';const s=String(v).slice(0,10).split('-');return s.length===3?`${s[2]}/${s[1]}/${s[0]}`:v};
 const dtBR=v=>{if(!v)return '-';try{return new Date(v).toLocaleString('pt-BR')}catch{return v}};
 const slug=v=>String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
@@ -68,13 +69,13 @@ function render(){
   $('ranking').innerHTML=units.length?units.map(u=>`<div class="rank-row"><b>${esc(u.unit)}</b><div class="bar-track"><div class="bar" style="width:${Math.min(Number(u.usage_pct||0),120)/1.2}%"></div></div><div class="pct">${pct(u.usage_pct)}</div>${chip(u.status)}</div>`).join(''):'<div class="empty">Nenhum snapshot encontrado no SQLite.</div>';
   const riskOrder={ESTOURADO:5,'ESTOURO PREVISTO':4,'RISCO ALTO':3,'RISCO MODERADO':2,CONTROLADO:1};
   const alerts=[...units].filter(u=>(riskOrder[u.forecast_risk]||0)>=3).sort((a,b)=>(riskOrder[b.forecast_risk]||0)-(riskOrder[a.forecast_risk]||0)||b.usage_pct-a.usage_pct);
-  $('alerts').innerHTML=alerts.length?alerts.map(u=>`<div class="alert-item"><b>${esc(u.unit)}</b>${chip(u.forecast_risk)}<span>${u.forecast_risk==='ESTOURADO'?'Franquia já ultrapassada.':u.forecast_limit_date?'100% estimado em '+dateBR(u.forecast_limit_date)+'.':'Projeção elevada no fim do ciclo.'} Ritmo ${num(u.rate_gb_day)} GB/dia.</span><span class="num">${gb(u.projected_overage_gb)} proj.</span></div>`).join(''):'<div class="empty">Nenhuma unidade em risco alto no momento.</div>';
-  $('unitTable').innerHTML=units.map(u=>`<tr><td><b>${esc(u.unit)}</b></td><td>${dateBR(u.period_start)}-${dateBR(u.period_end)}</td><td class="num">${gb(u.total_gb)}</td><td class="num">${gb(u.quota_gb)}</td><td class="num">${pct(u.usage_pct)}</td><td>${chip(u.status)}</td><td class="num">${num(u.rate_gb_day)}</td><td>${esc(u.trend||'-')}</td><td>${chip(u.forecast_risk)}</td><td>${esc(u.forecast_confidence||'-')}</td><td>${dateBR(u.forecast_limit_date)}</td><td class="num">${gb(u.projected_cycle_end_gb)}</td><td class="num">${gb(u.projected_overage_gb)}</td><td>${chip(u.data_freshness||'-')}</td><td class="muted">${esc(u.service_line||'-')}</td></tr>`).join('');
+  $('alerts').innerHTML=alerts.length?alerts.map(u=>`<div class="alert-item"><b>${esc(u.unit)}</b>${chip(u.forecast_risk)}<span>${u.forecast_risk==='ESTOURADO'?'Franquia já ultrapassada.':u.forecast_limit_date?'100% estimado em '+dateBR(u.forecast_limit_date)+'.':'Projeção elevada no fim do ciclo.'} Ritmo ${rate(u)} GB/dia.</span><span class="num">${gb(u.projected_overage_gb)} proj.</span></div>`).join(''):'<div class="empty">Nenhuma unidade em risco alto no momento.</div>';
+  $('unitTable').innerHTML=units.map(u=>`<tr><td><b>${esc(u.unit)}</b></td><td>${dateBR(u.period_start)}-${dateBR(u.period_end)}</td><td class="num">${gb(u.total_gb)}</td><td class="num">${gb(u.quota_gb)}</td><td class="num">${pct(u.usage_pct)}</td><td>${chip(u.status)}</td><td class="num" title="${esc(u.projection_method||'-')}">${rate(u)}</td><td>${esc(u.trend||'-')}</td><td>${chip(u.forecast_risk)}</td><td>${esc(u.forecast_confidence||'-')}</td><td>${dateBR(u.forecast_limit_date)}</td><td class="num">${gb(u.projected_cycle_end_gb)}</td><td class="num">${gb(u.projected_overage_gb)}</td><td>${chip(u.data_freshness||'-')}</td><td class="muted">${esc(u.service_line||'-')}</td></tr>`).join('');
   drawTrend(); setupTimer(data.refresh_seconds||60);
 }
 function drawTrend(){
   const u=(data.units||[]).find(x=>x.unit===selectedUnit); const series=(data.history||{})[selectedUnit]||[];
-  $('trendMeta').textContent=u?`${selectedUnit} · ${num(u.rate_gb_day)} GB/dia · ${u.trend||'-'} · ${data.days} dias`:'-'; $('trendRisk').innerHTML=u?chip(u.forecast_risk):'';
+  $('trendMeta').textContent=u?`${selectedUnit} · ${rate(u)} GB/dia · ${u.trend||'-'} · ${data.days} dias`:'-'; $('trendRisk').innerHTML=u?chip(u.forecast_risk):'';
   if(!series.length){$('trendChart').innerHTML='<div class="empty">Sem histórico para esta unidade.</div>';return}
   const W=720,H=280,P={l:48,r:24,t:18,b:38}; let max=Math.max(110,...series.map(p=>Number(p.usage_pct||0))); max=Math.ceil(max/20)*20;
   const x=i=>P.l+(series.length===1?(W-P.l-P.r)/2:i*(W-P.l-P.r)/(series.length-1)); const y=v=>P.t+(max-v)*(H-P.t-P.b)/max;

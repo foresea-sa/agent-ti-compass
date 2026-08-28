@@ -41,7 +41,9 @@ def _dedupe_daily(history: list[dict], current: dict) -> list[dict]:
         if not day:
             continue
         prev = by_day.get(day)
-        if not prev or str(item.get("collected_at") or "") >= str(prev.get("collected_at") or ""):
+        if not prev or (str(item.get("collected_at") or ""), int(item.get("id") or 0)) >= (
+            str(prev.get("collected_at") or ""), int(prev.get("id") or 0)
+        ):
             by_day[day] = dict(item)
     return [by_day[d] for d in sorted(by_day)]
 
@@ -61,6 +63,7 @@ def _trim_to_cycle_and_reset(series: list[dict], cycle_start: date, reset_tolera
 
 
 def _linear_rate(series: list[dict]) -> float | None:
+    """GB/dia baseado no crescimento do acumulado entre snapshots reais."""
     if len(series) < 2:
         return None
     first_day = _effective_day(series[0])
@@ -122,6 +125,8 @@ def _forecast_risk(current_total: float, quota: float, projected: float | None, 
         return "SEM FRANQUIA"
     if current_total >= quota:
         return "ESTOURADO"
+    if projected is None:
+        return "SEM PREVISAO"
     if forecast_date and forecast_date <= cycle_end:
         return "ESTOURO PREVISTO"
     projected = float(projected or 0)
@@ -139,13 +144,48 @@ def _confidence(points: int, freshness: str, method: str) -> str:
         return "ALTA"
     if method == "HISTORICO" and points >= 2:
         return "MEDIA"
-    return "BAIXA"
+    if method in {"BASELINE CONFIGURADO", "MEDIA DO CICLO"}:
+        return "BAIXA"
+    return "SEM DADOS"
+
+
+def _unit_cycle_start_day(row: dict, proj_cfg: dict) -> int:
+    unit = str(row.get("unit") or "")
+    by_unit = proj_cfg.get("cycle_start_day_by_unit", {}) or {}
+    value = by_unit.get(unit, proj_cfg.get("cycle_start_day", 1))
+    try:
+        return min(max(int(value or 1), 1), 28)
+    except Exception:
+        return 1
+
+
+def _fallback_rate(row: dict, current_total: float, reference_day: date, cycle_start: date, hist_cfg: dict) -> tuple[float | None, str]:
+    """Fallback seguro quando ainda nao existem 2 snapshots reais.
+
+    IMPORTANTE: o intervalo selecionado no Compass (period_days) NAO e usado como
+    divisor. O CSV de Fleet Usage contem consumo acumulado e o intervalo do nome do
+    arquivo nao representa, por si so, a janela usada para formar aquele acumulado.
+    """
+    unit = str(row.get("unit") or "")
+    baselines = hist_cfg.get("baseline_rate_gb_day", {}) or {}
+    if unit in baselines:
+        try:
+            return max(float(baselines[unit]), 0.0), "BASELINE CONFIGURADO"
+        except Exception:
+            pass
+
+    mode = str(hist_cfg.get("fallback_rate_mode", "cycle_average") or "cycle_average").strip().lower()
+    if mode in {"none", "disabled", "off"}:
+        return None, "AGUARDANDO HISTORICO"
+
+    # Media do ciclo contratual/configurado. Nunca usa period_days do CSV.
+    elapsed_days = max((reference_day - cycle_start).days + 1, 1)
+    return (current_total / elapsed_days if current_total > 0 else 0.0), "MEDIA DO CICLO"
 
 
 def apply_historical_analytics(rows: list[dict], config: dict, history_by_unit: dict[str, list[dict]]) -> list[dict]:
     hist_cfg = config.get("history", {})
     proj_cfg = config.get("projection", {})
-    start_day = int(proj_cfg.get("cycle_start_day", 1))
     min_points = max(int(hist_cfg.get("min_points_for_history_rate", 2)), 2)
     recent_window = max(int(hist_cfg.get("recent_window_days", 3)), 2)
     reset_tolerance = float(hist_cfg.get("reset_tolerance_gb", 25))
@@ -154,6 +194,7 @@ def apply_historical_analytics(rows: list[dict], config: dict, history_by_unit: 
 
     for row in rows:
         reference_day = _effective_day(row) or system_today
+        start_day = _unit_cycle_start_day(row, proj_cfg)
         cycle_start, cycle_end = billing_cycle(reference_day, start_day)
         history = history_by_unit.get(row.get("unit"), [])
         series = _trim_to_cycle_and_reset(_dedupe_daily(history, row), cycle_start, reset_tolerance)
@@ -161,31 +202,29 @@ def apply_historical_analytics(rows: list[dict], config: dict, history_by_unit: 
         quota = float(row.get("quota_gb") or 0)
 
         hist_rate = _linear_rate(series) if len(series) >= min_points else None
-        period_days = int(row.get("period_days") or 0)
-        period_start = row.get("period_start")
-        if period_days > 0 and period_start:
-            fallback_rate = current_total / period_days if current_total > 0 else 0.0
-            fallback_method = "MEDIA DO PERIODO COMPASS"
-        else:
-            elapsed_days = max((reference_day - cycle_start).days + 1, 1)
-            fallback_rate = current_total / elapsed_days if current_total > 0 else 0.0
-            fallback_method = "MEDIA DO CICLO"
-
-        if hist_rate is not None and hist_rate > 0:
+        if hist_rate is not None:
             rate, method = hist_rate, "HISTORICO"
         else:
-            rate, method = fallback_rate, fallback_method
+            rate, method = _fallback_rate(row, current_total, reference_day, cycle_start, hist_cfg)
 
         projection_enabled = bool(proj_cfg.get("enabled", True))
         remaining_days = max((cycle_end - reference_day).days, 0)
-        projected_end = current_total + rate * remaining_days if projection_enabled else None
-        projected_overage = max(float(projected_end or 0) - quota, 0.0) if projection_enabled and quota > 0 else 0.0
+        projected_end = (
+            current_total + float(rate) * remaining_days
+            if projection_enabled and rate is not None
+            else None
+        )
+        projected_overage = (
+            max(float(projected_end) - quota, 0.0)
+            if projected_end is not None and quota > 0
+            else 0.0
+        )
         remaining = max(quota - current_total, 0.0) if quota > 0 else 0.0
 
         if projection_enabled and quota > 0 and current_total >= quota:
             days_to_limit, forecast_date = 0.0, reference_day
-        elif projection_enabled and quota > 0 and rate > 0:
-            days_to_limit = remaining / rate
+        elif projection_enabled and quota > 0 and rate is not None and rate > 0:
+            days_to_limit = remaining / float(rate)
             forecast_date = reference_day + timedelta(days=max(math.ceil(days_to_limit), 0))
         else:
             days_to_limit, forecast_date = None, None

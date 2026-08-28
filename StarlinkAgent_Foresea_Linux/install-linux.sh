@@ -170,6 +170,7 @@ HELPER_SCRIPTS=(
   last-video-linux.sh
   test-report-linux.sh
   bootstrap-dashboard-linux.sh
+  sync-history-linux.sh
 )
 for helper in "${HELPER_SCRIPTS[@]}"; do
   [[ -f "$SOURCE_DIR/$helper" ]] || fail "Script obrigatorio ausente no pacote: $helper"
