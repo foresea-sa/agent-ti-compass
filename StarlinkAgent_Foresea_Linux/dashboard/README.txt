@@ -1,16 +1,17 @@
-DASHBOARD STARLINK v0.9.2 - LINUX
-==============================
-O dashboard le diretamente database/starlink.db.
+STARLINK DASHBOARD v0.9.3
 
-Servico:
-  sudo systemctl start starlink-dashboard.service
-  sudo systemctl enable starlink-dashboard.service
+ROTAS
+- /                         Capa executiva com cards por localidade.
+- /unidade/<UNIDADE>        Dashboard exclusivo da unidade selecionada.
+- /api/unit-pdf?unit=N09    Download do PDF executivo da unidade.
+- /analise-consolidada      Analise consolidada de todas as unidades. Nao aparece na navegacao.
 
-Acesso padrao:
-  http://127.0.0.1:8787
+IMPORTANTE
+A rota consolidada e apenas oculta da interface. Isso nao e um controle de seguranca.
+Restrinja o acesso por firewall/VLAN ou implemente autenticacao/reverse proxy quando necessario.
 
-Health check:
-  curl http://127.0.0.1:8787/health
+CONFIGURACAO
+A rota consolidada pode ser alterada em config.json:
+  dashboard.consolidated_path
 
-Para acesso remoto, altere dashboard.host para 0.0.0.0 no config.json e proteja a porta
-8787 com firewall/VLAN/VPN. Nao exponha diretamente a Internet.
+O dashboard usa o mesmo SQLite e analytics v0.9.2+ para todos os modos de exibicao.

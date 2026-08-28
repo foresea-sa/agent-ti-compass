@@ -4,3 +4,23 @@
 2026-08-28 13:57:43,400 | INFO | Banco vazio. Tentando carga inicial pelo CSV local: /mnt/data/starlink_v090_work/StarlinkAgent_Foresea_Linux/data/raw/Starlink_Fleet_Usage_2c56a7f1_2026-08-01_to_2026-08-27.csv
 2026-08-28 13:57:43,405 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
 2026-08-28 13:57:43,426 | INFO | Carga inicial via CSV concluida: unidades=8 snapshots_novos=8
+2026-08-28 15:49:21,497 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:31,746 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:32,843 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:34,013 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:35,142 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:36,230 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:37,449 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:38,628 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:39,902 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:40,998 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:42,202 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:43,469 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:44,930 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:46,443 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:47,878 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:49,314 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:50,419 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:51,395 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:52,363 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit
+2026-08-28 15:49:53,299 | INFO | Colunas do CSV Compass: Kit Name, Kit ID(s), Business Service, Service Line, Plan Name, Limit (GB), Data Boosters (GB), Priority (GB), Standard (GB), % of Limit

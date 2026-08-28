@@ -2,16 +2,15 @@ from __future__ import annotations
 
 import json
 import logging
-import mimetypes
-import sqlite3
-from collections import defaultdict
+import re
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from analytics.cycle_view import build_cycle_view, load_records
 from database.db import init_db
+from reports.executive_report import generate_pdf
 
 BASE = Path(__file__).resolve().parents[1]
 STATIC = Path(__file__).resolve().parent / "static"
@@ -19,7 +18,7 @@ DB_PATH = BASE / "database" / "starlink.db"
 CONFIG_PATH = BASE / "config.json"
 FALLBACK_CONFIG_PATH = BASE / "config.example.json"
 ASSETS = BASE / "assets"
-
+PDF_DIR = BASE / "output" / "dashboard_pdf"
 logger = logging.getLogger("starlink-dashboard")
 
 
@@ -30,6 +29,13 @@ def _config() -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _consolidated_path() -> str:
+    value = str(_config().get("dashboard", {}).get("consolidated_path", "/analise-consolidada")).strip()
+    if not value.startswith("/"):
+        value = "/" + value
+    return value.rstrip("/") or "/analise-consolidada"
+
+
 def _to_float(value) -> float:
     try:
         return float(value or 0)
@@ -37,19 +43,10 @@ def _to_float(value) -> float:
         return 0.0
 
 
-def _iso_date(value: str | None) -> str | None:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(str(value)).date().isoformat()
-    except Exception:
-        return str(value)[:10]
-
-
 def _display_row(row: dict) -> dict:
     keys = {
         "unit", "collected_at", "period", "period_start", "period_end", "period_days", "source_name", "source_file",
-        "terminal", "kit_name", "service_line", "plan_name",
+        "terminal", "kit_name", "service_line", "plan_name", "recommended_action",
         "quota_gb", "priority_gb", "booster_gb", "standard_gb", "overage_gb", "total_gb", "remaining_gb",
         "usage_pct", "portal_usage_pct", "status", "rate_gb_day", "trend", "history_points", "days_to_limit",
         "forecast_limit_date", "cycle_start_date", "cycle_end_date", "projected_cycle_end_gb", "projected_overage_gb",
@@ -67,74 +64,23 @@ def _display_row(row: dict) -> dict:
     return data
 
 
-def _latest_rows(conn: sqlite3.Connection) -> list[dict]:
-    query = """
-        SELECT * FROM usage_history
-        WHERE id IN (
-            SELECT MAX(id) FROM usage_history GROUP BY unit
-        )
-        ORDER BY usage_pct DESC, unit ASC
-    """
-    return [dict(r) for r in conn.execute(query).fetchall()]
-
-
-def _history_rows(conn: sqlite3.Connection, days: int) -> dict[str, list[dict]]:
-    cutoff = (datetime.now() - timedelta(days=max(days - 1, 0))).date().isoformat()
-    query = """
-        SELECT id, collected_at, period_end, unit, quota_gb, total_gb, usage_pct, status
-        FROM usage_history
-        WHERE COALESCE(period_end, substr(collected_at,1,10)) >= ?
-        ORDER BY unit, COALESCE(period_end, substr(collected_at,1,10)), collected_at, id
-    """
-    rows = [dict(r) for r in conn.execute(query, [cutoff]).fetchall()]
-    daily: dict[str, dict[str, dict]] = defaultdict(dict)
-    for row in rows:
-        day = _iso_date(row.get("period_end") or row.get("collected_at"))
-        if not day:
-            continue
-        prev = daily[row["unit"]].get(day)
-        if prev is None or int(row.get("id") or 0) > int(prev.get("id") or 0):
-            daily[row["unit"]][day] = row
-    result = {}
-    for unit, by_day in daily.items():
-        result[unit] = [
-            {
-                "date": day,
-                "total_gb": _to_float(item.get("total_gb")),
-                "quota_gb": _to_float(item.get("quota_gb")),
-                "usage_pct": _to_float(item.get("usage_pct")),
-                "status": item.get("status") or "NORMAL",
-            }
-            for day, item in sorted(by_day.items())
-        ]
-    return result
+def _cycle_data(days: int = 7):
+    days = 30 if int(days) == 30 else 7
+    cfg = _config()
+    refresh = int(cfg.get("dashboard", {}).get("refresh_seconds", 60))
+    if not DB_PATH.exists():
+        return cfg, refresh, [], {}
+    lookback = int(cfg.get("history", {}).get("lookback_days", 120))
+    records = load_records(DB_PATH, lookback_days=lookback)
+    rows, histories = build_cycle_view(records, cfg)
+    cutoff = (datetime.now().date() - timedelta(days=max(days - 1, 0))).isoformat()
+    filtered = {u: [p for p in series if str(p.get("date") or "") >= cutoff] for u, series in histories.items()}
+    return cfg, refresh, rows, filtered
 
 
 def dashboard_data(days: int = 7) -> dict:
-    days = 30 if days == 30 else 7
-    cfg = _config()
-    refresh_seconds = int(cfg.get("dashboard", {}).get("refresh_seconds", 60))
-    if not DB_PATH.exists():
-        return {
-            "generated_at": datetime.now().isoformat(timespec="seconds"),
-            "days": days,
-            "refresh_seconds": refresh_seconds,
-            "summary": {"units": 0, "total_usage_gb": 0, "total_quota_gb": 0, "total_overage_gb": 0, "projected_overage_gb": 0, "at_risk": 0, "last_collection": None},
-            "units": [],
-            "history": {},
-        }
-
-    lookback = int(cfg.get("history", {}).get("lookback_days", 120))
-    records = load_records(DB_PATH, lookback_days=lookback)
-    cycle_rows, full_history = build_cycle_view(records, cfg)
-    latest = [_display_row(r) for r in cycle_rows]
-
-    cutoff = (datetime.now().date() - timedelta(days=max(days - 1, 0))).isoformat()
-    history = {}
-    for unit, series in full_history.items():
-        filtered = [p for p in series if str(p.get("date") or "") >= cutoff]
-        history[unit] = filtered
-
+    cfg, refresh_seconds, rows, history = _cycle_data(days)
+    latest = [_display_row(r) for r in rows]
     total_usage = sum(r["total_gb"] for r in latest)
     total_quota = sum(r["quota_gb"] for r in latest)
     total_overage = sum(r["overage_gb"] for r in latest)
@@ -145,98 +91,104 @@ def dashboard_data(days: int = 7) -> dict:
     period_end = max((str(r.get("period_end")) for r in latest if r.get("period_end")), default=None)
     max_age = max((int(r.get("data_age_days") or 0) for r in latest), default=0)
     stale_units = sum(1 for r in latest if str(r.get("data_freshness") or "").upper() == "DESATUALIZADO")
-
     return {
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "days": days,
-        "refresh_seconds": refresh_seconds,
-        "summary": {
-            "units": len(latest),
-            "total_usage_gb": total_usage,
-            "total_quota_gb": total_quota,
-            "total_overage_gb": total_overage,
-            "projected_overage_gb": projected_overage,
-            "at_risk": at_risk,
-            "last_collection": last_collection,
-            "period_start": period_start,
-            "period_end": period_end,
-            "max_data_age_days": max_age,
-            "stale_units": stale_units,
-        },
-        "units": latest,
-        "history": history,
+        "generated_at": datetime.now().isoformat(timespec="seconds"), "days": 30 if int(days) == 30 else 7, "refresh_seconds": refresh_seconds,
+        "summary": {"units": len(latest), "total_usage_gb": total_usage, "total_quota_gb": total_quota,
+                    "total_overage_gb": total_overage, "projected_overage_gb": projected_overage, "at_risk": at_risk,
+                    "last_collection": last_collection, "period_start": period_start, "period_end": period_end,
+                    "max_data_age_days": max_age, "stale_units": stale_units},
+        "units": latest, "history": history,
     }
 
 
+def unit_data(unit: str, days: int = 30) -> dict | None:
+    _, refresh, rows, history = _cycle_data(days)
+    match = next((r for r in rows if str(r.get("unit") or "").upper() == str(unit).upper()), None)
+    if match is None:
+        return None
+    return {"generated_at": datetime.now().isoformat(timespec="seconds"), "refresh_seconds": refresh,
+            "unit": _display_row(match), "history": history.get(str(match.get("unit")), [])}
+
+
+def _unit_pdf(unit: str) -> tuple[Path, str] | None:
+    cfg, _, rows, _ = _cycle_data(30)
+    match = next((r for r in rows if str(r.get("unit") or "").upper() == str(unit).upper()), None)
+    if match is None:
+        return None
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "_", str(match.get("unit") or "unidade"))
+    filename = f"Relatorio_Starlink_{safe}_{datetime.now().strftime('%Y-%m-%d')}.pdf"
+    path = PDF_DIR / filename
+    generate_pdf([match], cfg, output_path=path)
+    return path, filename
+
+
 class Handler(BaseHTTPRequestHandler):
-    server_version = "StarlinkDashboard/0.9.2"
+    server_version = "StarlinkDashboard/0.9.3"
 
     def _common_headers(self, content_type: str, content_length: int | None = None, cache: str = "no-store"):
-        self.send_header("Content-Type", content_type)
-        self.send_header("Cache-Control", cache)
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "SAMEORIGIN")
-        self.send_header("Referrer-Policy", "no-referrer")
-        if content_length is not None:
-            self.send_header("Content-Length", str(content_length))
+        self.send_header("Content-Type", content_type); self.send_header("Cache-Control", cache)
+        self.send_header("X-Content-Type-Options", "nosniff"); self.send_header("X-Frame-Options", "SAMEORIGIN"); self.send_header("Referrer-Policy", "no-referrer")
+        if content_length is not None: self.send_header("Content-Length", str(content_length))
 
-    def _send_bytes(self, payload: bytes, content_type: str, status: int = 200, cache: str = "no-store"):
-        self.send_response(status)
-        self._common_headers(content_type, len(payload), cache)
-        self.end_headers()
-        self.wfile.write(payload)
+    def _send_bytes(self, payload: bytes, content_type: str, status: int = 200, cache: str = "no-store", disposition: str | None = None):
+        self.send_response(status); self._common_headers(content_type, len(payload), cache)
+        if disposition: self.send_header("Content-Disposition", disposition)
+        self.end_headers(); self.wfile.write(payload)
 
     def _send_json(self, obj: dict, status: int = 200):
         self._send_bytes(json.dumps(obj, ensure_ascii=False).encode("utf-8"), "application/json; charset=utf-8", status=status)
 
     def do_GET(self):
-        parsed = urlparse(self.path)
-        if parsed.path in {"/", "/index.html"}:
-            path = STATIC / "index.html"
-            self._send_bytes(path.read_bytes(), "text/html; charset=utf-8", cache="no-cache")
-            return
-        if parsed.path == "/api/dashboard":
+        parsed = urlparse(self.path); path = parsed.path.rstrip("/") or "/"
+        if path in {"/", "/index.html"}:
+            self._send_bytes((STATIC / "cover.html").read_bytes(), "text/html; charset=utf-8", cache="no-cache"); return
+        if path.startswith("/unidade/"):
+            self._send_bytes((STATIC / "unit.html").read_bytes(), "text/html; charset=utf-8", cache="no-cache"); return
+        if path == _consolidated_path():
+            self._send_bytes((STATIC / "consolidated.html").read_bytes(), "text/html; charset=utf-8", cache="no-cache"); return
+        if path == "/api/dashboard":
             params = parse_qs(parsed.query)
-            try:
-                days = int((params.get("days") or ["7"])[0])
-            except Exception:
-                days = 7
-            self._send_json(dashboard_data(days))
+            try: days = int((params.get("days") or ["7"])[0])
+            except Exception: days = 7
+            self._send_json(dashboard_data(days)); return
+        if path == "/api/unit":
+            params = parse_qs(parsed.query); unit = (params.get("unit") or [""])[0]
+            try: days = int((params.get("days") or ["30"])[0])
+            except Exception: days = 30
+            data = unit_data(unit, days)
+            if data is None: self._send_json({"error": "unit not found"}, status=404)
+            else: self._send_json(data)
             return
-        if parsed.path == "/health":
-            self._send_json({"status": "ok", "version": "0.9.2", "db_exists": DB_PATH.exists()})
-            return
-        if parsed.path == "/logo.png":
+        if path == "/api/unit-pdf":
+            params = parse_qs(parsed.query); unit = unquote((params.get("unit") or [""])[0])
+            try: result = _unit_pdf(unit)
+            except Exception as exc:
+                logger.exception("Falha ao gerar PDF da unidade %s", unit); self._send_json({"error": str(exc)}, status=500); return
+            if result is None: self._send_json({"error": "unit not found"}, status=404); return
+            pdf, filename = result
+            self._send_bytes(pdf.read_bytes(), "application/pdf", cache="no-store", disposition=f'attachment; filename="{filename}"'); return
+        if path == "/health":
+            self._send_json({"status": "ok", "version": "0.9.3", "db_exists": DB_PATH.exists(), "consolidated_path": _consolidated_path()}); return
+        if path == "/logo.png":
             logo = ASSETS / "logo.png"
-            if logo.exists():
-                self._send_bytes(logo.read_bytes(), "image/png", cache="public, max-age=300")
-            else:
-                self._send_bytes(b"", "image/png", status=404)
+            if logo.exists(): self._send_bytes(logo.read_bytes(), "image/png", cache="public, max-age=300")
+            else: self._send_bytes(b"", "image/png", status=404)
             return
         self._send_json({"error": "not found"}, status=404)
 
-    def log_message(self, fmt, *args):
-        logger.info("%s - %s", self.address_string(), fmt % args)
+    def log_message(self, fmt, *args): logger.info("%s - %s", self.address_string(), fmt % args)
 
 
 def run():
-    init_db()
-    cfg = _config()
-    dash = cfg.get("dashboard", {})
-    host = str(dash.get("host", "127.0.0.1"))
-    port = int(dash.get("port", 8787))
+    init_db(); cfg = _config(); dash = cfg.get("dashboard", {}); host = str(dash.get("host", "127.0.0.1")); port = int(dash.get("port", 8787))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     httpd = ThreadingHTTPServer((host, port), Handler)
-    logger.info("Dashboard Starlink v0.9.2 em http://%s:%s", host, port)
-    if host not in {"127.0.0.1", "localhost", "::1"}:
-        logger.warning("Dashboard exposto fora do localhost. Restrinja o acesso por firewall/VLAN; esta versao nao implementa autenticacao web.")
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        httpd.server_close()
+    logger.info("Dashboard Starlink v0.9.3 em http://%s:%s", host, port)
+    logger.info("Analise consolidada (nao exibida na navegacao): %s", _consolidated_path())
+    if host not in {"127.0.0.1", "localhost", "::1"}: logger.warning("Dashboard exposto fora do localhost. Restrinja o acesso por firewall/VLAN; ocultar a rota consolidada nao substitui autenticacao.")
+    try: httpd.serve_forever()
+    except KeyboardInterrupt: pass
+    finally: httpd.server_close()
 
 
-if __name__ == "__main__":
-    run()
+if __name__ == "__main__": run()

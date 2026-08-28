@@ -1,3 +1,10 @@
+v0.9.3
+- Nova capa executiva com cards clicaveis por localidade.
+- Dashboard individual por unidade em /unidade/<UNIDADE>.
+- Download de PDF executivo da unidade selecionada.
+- Pagina consolidada oculta da navegacao, configuravel por dashboard.consolidated_path.
+- Mantida a analise de intervalos/consumo diario da v0.9.2.
+
 v0.9.2
 - Corrige a semantica dos CSVs Compass: cada exportacao representa consumo do intervalo selecionado.
 - CSV de um dia passa a ser tratado como consumo diario real, nao snapshot acumulado.

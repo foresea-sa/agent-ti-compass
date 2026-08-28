@@ -116,6 +116,9 @@
     "bootstrap_on_start": true,
     "bootstrap_prefer_latest_raw_csv": true,
     "bootstrap_live_collect_if_empty": true,
-    "bootstrap_import_all_raw_csvs": true
+    "bootstrap_import_all_raw_csvs": true,
+    "consolidated_path": "/analise-consolidada",
+    "landing_page": "localities",
+    "unit_pdf_enabled": true
   }
 }

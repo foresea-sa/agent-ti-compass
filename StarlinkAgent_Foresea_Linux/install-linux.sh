@@ -158,6 +158,10 @@ SOURCE_CYCLE_SHA="$(sha256sum "$SOURCE_DIR/analytics/cycle_view.py" | awk '{prin
 DEST_CYCLE_SHA="$(sha256sum "$INSTALL_DIR/analytics/cycle_view.py" | awk '{print $1}')"
 [[ "$SOURCE_CYCLE_SHA" == "$DEST_CYCLE_SHA" ]] || fail "analytics/cycle_view.py do destino nao corresponde ao pacote."
 log "Deploy de codigo: OK (versao=$INSTALLED_VERSION collector_sha256=$DEST_COLLECTOR_SHA cycle_view_sha256=$DEST_CYCLE_SHA)"
+[[ -f "$INSTALL_DIR/dashboard/static/cover.html" ]] || fail "Dashboard cover.html ausente apos deploy."
+[[ -f "$INSTALL_DIR/dashboard/static/unit.html" ]] || fail "Dashboard unit.html ausente apos deploy."
+[[ -f "$INSTALL_DIR/dashboard/static/consolidated.html" ]] || fail "Dashboard consolidated.html ausente apos deploy."
+log "Dashboard UI v0.9.3: OK (capa + unidade + consolidado)"
 
 # Instalar explicitamente os scripts operacionais. Isto evita que uma atualizacao
 # parcial deixe /opt/starlink-agent com os helpers de uma versao anterior.
