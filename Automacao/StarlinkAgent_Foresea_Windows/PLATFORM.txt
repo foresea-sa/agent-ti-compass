@@ -1,3 +1,0 @@
-WINDOWS
-Starlink Consumption Agent Foresea v0.8
-Suporte recomendado: Windows Server 2019/2022/2025 ou Windows 10/11 x64.

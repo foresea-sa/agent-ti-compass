@@ -1,6 +1,0 @@
-# Este arquivo e mantido apenas por compatibilidade.
-# O install-linux.sh NAO usa mais um requirements fixo.
-# Ele detecta o sistema operacional/Python e seleciona automaticamente:
-#   requirements-linux-legacy.txt  -> Ubuntu 20.04 / Debian 11 / Python 3.8
-#   requirements-linux-modern.txt  -> Ubuntu 22.04/24.04 / Debian 12 / Python >=3.9
--r requirements-linux-modern.txt

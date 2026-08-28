@@ -1,9 +1,0 @@
-SEGURANCA - WINDOWS
-===================
-1. Senha do Compass nao fica no codigo ou config.json.
-2. As credenciais ficam no Windows Credential Manager via keyring.
-3. A tarefa diaria deve executar com o mesmo usuario que cadastrou as credenciais.
-4. Nao compartilhe data\compass_state.json: ele pode conter cookies/sessao autenticada.
-5. Restrinja acesso NTFS a pasta do agente, especialmente data, database, logs e output.
-6. Dashboard escuta 127.0.0.1 por padrao. Se mudar para 0.0.0.0, proteja com Firewall/VPN/VLAN.
-7. Se Microsoft Graph for habilitado, use uma App Registration dedicada e restrinja a permissao Mail.Send.
