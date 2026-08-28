@@ -1,0 +1,21 @@
+ATUALIZACAO v0.6 -> v0.7
+========================
+
+1. Pare qualquer execucao do agente/dashboard.
+2. Faca backup da pasta atual.
+3. Preserve obrigatoriamente:
+   - database\starlink.db
+   - config.json
+   - data\compass_state.json
+   - assets\logo.png
+4. Substitua os arquivos da aplicacao pelos da v0.7.
+5. Inclua no config.json a secao "dashboard" do config.example.json.
+6. Inicie o dashboard:
+   .\start_dashboard.ps1
+7. Abra no servidor:
+   http://127.0.0.1:8787
+8. Opcional: PowerShell como Administrador:
+   .\create_dashboard_task.ps1
+
+A v0.7 NAO altera nem apaga o historico SQLite da v0.6.
+O dashboard le o mesmo database\starlink.db usado pelo agente.

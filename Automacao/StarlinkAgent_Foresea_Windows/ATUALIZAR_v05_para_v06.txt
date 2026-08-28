@@ -1,0 +1,36 @@
+ATUALIZACAO v0.5 -> v0.6
+=======================
+
+Se voce ja estiver usando a v0.5, preserve estes itens antes de substituir a pasta:
+
+1. config.json
+2. database\starlink.db
+3. assets\logo.png
+4. data\compass_state.json (opcional; preserva a sessao)
+
+A v0.6 migra automaticamente o schema do SQLite e reaproveita os snapshots antigos da v0.5.
+Isso permite que a tendencia historica comece com os dados ja existentes, quando houver.
+
+Depois da atualizacao:
+1. Compare seu config.json com config.example.json.
+2. Adicione/ajuste:
+
+  "projection": {
+    "enabled": true,
+    "cycle_start_day": 1
+  },
+  "history": {
+    "lookback_days": 90,
+    "min_points_for_history_rate": 2,
+    "recent_window_days": 3,
+    "reset_tolerance_gb": 25
+  }
+
+3. Confirme que cycle_start_day corresponde ao ciclo real do Compass/Starlink.
+4. Execute manualmente:
+   .\.venv\Scripts\python.exe agent.py
+5. Confira output\, logs\ e a aba Tendencia do Excel.
+
+IMPORTANTE
+----------
+Nao substitua seu database\starlink.db por um banco vazio se quiser preservar o historico.

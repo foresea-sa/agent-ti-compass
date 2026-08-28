@@ -1,0 +1,33 @@
+ATUALIZACAO STARLINK AGENT v0.7 -> v0.8
+======================================
+
+1. Pare a tarefa agendada e o dashboard v0.7.
+2. Faça backup de:
+   - database\starlink.db
+   - config.json
+   - assets\logo.png
+   - data\compass_state.json (se quiser preservar a sessao)
+3. Extraia a v0.8 em uma nova pasta.
+4. Copie o starlink.db antigo para database\starlink.db da v0.8.
+5. Copie config.json e logo.png.
+6. Execute uma vez:
+   .\.venv\Scripts\python.exe -c "from database.db import init_db; init_db(); print('Banco migrado para v0.8')"
+7. Teste um CSV manual:
+   .\.venv\Scripts\python.exe gerar_relatorio_teste.py "C:\Temp\Starlink_Fleet_Usage.csv"
+8. Se quiser transformar um CSV historico em snapshot oficial:
+   .\.venv\Scripts\python.exe importar_snapshot.py "C:\Temp\Starlink_Fleet_Usage_2026-08-01_to_2026-08-27.csv"
+9. Execute agent.py e start_dashboard.ps1.
+
+O QUE A MIGRACAO ADICIONA
+-------------------------
+- period_start / period_end / period_days
+- arquivo fonte e SHA256 para auditoria
+- snapshot_key para evitar duplicacao
+- atualidade/idade dos dados
+- confianca da previsao
+- tendencia baseada na data efetiva period_end, e nao apenas no horario da coleta
+
+IMPORTANTE
+----------
+A migracao e aditiva: as colunas antigas permanecem. Registros v0.7 sem period_end continuam
+funcionando e usam collected_at como data efetiva ate serem substituidos por novas coletas.
