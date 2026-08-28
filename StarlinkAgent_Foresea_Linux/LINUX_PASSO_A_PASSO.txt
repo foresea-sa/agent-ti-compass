@@ -1,0 +1,93 @@
+FORESEA STARLINK AGENT v0.8 - LINUX
+==================================
+
+PLATAFORMA RECOMENDADA
+- Ubuntu Server 22.04 LTS ou 24.04 LTS x86_64
+- 2 vCPU, 4 GB RAM, 20 GB livres
+- Acesso HTTPS a compass.speedcast.com
+- Acesso a login.microsoftonline.com e graph.microsoft.com somente se e-mail estiver habilitado
+- systemd
+
+INSTALACAO AUTOMATICA
+1. Extraia o ZIP em uma pasta temporaria.
+2. Entre na pasta extraida.
+3. Execute:
+   chmod +x install-linux.sh
+   sudo ./install-linux.sh
+
+O instalador:
+- instala Python/venv/curl;
+- cria o usuario de servico starlinkagent;
+- copia o agente para /opt/starlink-agent;
+- cria .venv;
+- instala bibliotecas Python;
+- instala dependencias do Chromium;
+- instala Chromium via Playwright;
+- instala unidades systemd.
+
+CONFIGURACAO
+4. Edite:
+   sudo nano /opt/starlink-agent/config.json
+   Ajuste principalmente projection.cycle_start_day.
+
+5. Logo opcional:
+   sudo cp logo.png /opt/starlink-agent/assets/logo.png
+   sudo chown starlinkagent:starlinkagent /opt/starlink-agent/assets/logo.png
+
+6. Configure usuario/senha do Compass:
+   sudo /opt/starlink-agent/configure-credentials.sh
+   Os segredos ficam em /etc/starlink-agent/secrets.env, permissao 640 root:starlinkagent.
+
+TESTES
+7. Teste login + download CSV em Chromium headless:
+   sudo /opt/starlink-agent/test-login-linux.sh
+
+8. Teste o agente completo:
+   sudo systemctl start starlink-agent.service
+   sudo journalctl -u starlink-agent.service -n 100 --no-pager
+
+9. Teste CSV offline:
+   sudo -u starlinkagent /opt/starlink-agent/.venv/bin/python /opt/starlink-agent/gerar_relatorio_teste.py /caminho/arquivo.csv --period "Teste"
+
+AUTOMACAO
+10. Habilite coleta diaria e dashboard:
+    sudo /opt/starlink-agent/enable-services-linux.sh
+
+11. Verifique timers:
+    systemctl list-timers | grep starlink
+
+12. Logs ao vivo:
+    sudo journalctl -u starlink-agent.service -f
+    sudo journalctl -u starlink-dashboard.service -f
+
+DASHBOARD
+13. Local:
+    http://127.0.0.1:8787
+
+Para permitir acesso de outra maquina, altere dashboard.host para 0.0.0.0 no config.json
+e proteja a porta 8787 com firewall/VLAN/VPN. O dashboard v0.8 nao deve ser exposto diretamente a Internet.
+
+HORARIO
+Padrao: 06:00 todos os dias.
+Para alterar:
+  sudo nano /etc/systemd/system/starlink-agent.timer
+  sudo systemctl daemon-reload
+  sudo systemctl restart starlink-agent.timer
+
+BACKUP/UPGRADE
+Preserve:
+- /opt/starlink-agent/database/starlink.db
+- /opt/starlink-agent/config.json
+- /etc/starlink-agent/secrets.env
+Nunca compartilhe /opt/starlink-agent/data/compass_state.json.
+
+ATUALIZACAO v0.8.3 - DETECCAO AUTOMATICA
+----------------------------------------
+Nao altere requirements manualmente. Execute:
+  sudo ./install-linux.sh
+
+O instalador detecta Ubuntu/Debian, versao do OS e Python. Em Ubuntu 20.04/Python 3.8 usa automaticamente o perfil legacy. Em Ubuntu 22.04/24.04 e Debian 12 usa o perfil modern quando compativel.
+
+Para conferir o perfil aplicado:
+  sudo /opt/starlink-agent/diagnostico-linux.sh
+  cat /opt/starlink-agent/runtime-profile.env

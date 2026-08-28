@@ -1,0 +1,19 @@
+FORESEA STARLINK AGENT v0.8.5 - ESTABILIZACAO POS-LOGIN
+
+Problema observado:
+- O Compass mostra o menu superior logo apos autenticar, mas mantem um spinner central por cerca de 1 minuto.
+- A versao anterior podia navegar para /fleet/starlinkusage antes do fim do bootstrap da aplicacao.
+
+Correcao:
+- Depois que o login e confirmado, o agente aguarda uma janela minima configuravel (padrao: 70s).
+- So depois dessa estabilizacao o agente acessa /fleet/starlinkusage.
+- A pagina de uso tem timeout proprio de 120s.
+
+Parametros em config.json:
+  "login_wait_seconds": 90,
+  "post_login_stabilization_seconds": 70,
+  "post_login_max_wait_seconds": 120,
+  "usage_page_timeout_ms": 120000
+
+Para o ambiente observado, manter post_login_stabilization_seconds em 70.
+Se o Compass continuar lento, elevar para 90 sem alterar o codigo.

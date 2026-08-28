@@ -1,0 +1,103 @@
+{
+  "company": "Foresea",
+  "compass": {
+    "login_url": "https://compass.speedcast.com/login",
+    "usage_url": "https://compass.speedcast.com/fleet/starlinkusage",
+    "auth_state_file": "data/compass_state.json",
+    "headless": true,
+    "timeout_ms": 60000,
+    "auto_login": true,
+    "use_saved_session": true,
+    "login_wait_seconds": 90,
+    "post_login_stabilization_seconds": 70,
+    "post_login_max_wait_seconds": 120,
+    "usage_page_timeout_ms": 120000
+  },
+  "collection": {
+    "mode": "compass",
+    "aggregate_by_unit": true,
+    "units": [
+      "ODN1",
+      "ODN2",
+      "N06",
+      "N08",
+      "N09",
+      "HTQ",
+      "MACAE",
+      "RIO"
+    ],
+    "unit_aliases": {
+      "ODN1": [
+        "Foresea-ODN 1"
+      ],
+      "ODN2": [
+        "Foresea-ODN 2"
+      ],
+      "N06": [
+        "Foresea-Norbe VI"
+      ],
+      "N08": [
+        "Foresea-Norbe VIII"
+      ],
+      "N09": [
+        "Foresea-Norbe IX"
+      ],
+      "HTQ": [
+        "Hunter Queen"
+      ],
+      "MACAE": [
+        "Base Macae"
+      ],
+      "RIO": [
+        "Base Rio"
+      ]
+    },
+    "monthly_quota_gb": {
+      "ODN1": 5000,
+      "ODN2": 10000,
+      "N06": 5000,
+      "N08": 5000,
+      "N09": 5000,
+      "HTQ": 5000,
+      "MACAE": 1000,
+      "RIO": 1000
+    },
+    "preserve_portal_filename": true
+  },
+  "projection": {
+    "enabled": true,
+    "cycle_start_day": 1
+  },
+  "history": {
+    "lookback_days": 90,
+    "min_points_for_history_rate": 2,
+    "recent_window_days": 3,
+    "reset_tolerance_gb": 25,
+    "max_data_age_days": 2,
+    "use_compass_period_dates": true
+  },
+  "thresholds": {
+    "warning": 70,
+    "critical": 85,
+    "emergency": 95
+  },
+  "reporting": {
+    "logo_path": "assets/logo.png",
+    "executive_actions": true
+  },
+  "email": {
+    "enabled": false,
+    "sender": "infra@empresa.com",
+    "recipients": [
+      "destinatario@empresa.com"
+    ],
+    "subject_prefix": "Foresea | Relatorio Diario Starlink"
+  },
+  "dashboard": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 8787,
+    "refresh_seconds": 60,
+    "default_days": 7
+  }
+}
