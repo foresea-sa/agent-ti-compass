@@ -6,15 +6,14 @@ import logging
 from pathlib import Path
 
 from agent import _recommended_action, enrich
-from analytics.trends import apply_historical_analytics
 from collectors.compass import CompassCollector
-from database.db import get_history_by_units, init_db, insert_rows
+from database.db import init_db, insert_rows
 
 BASE = Path(__file__).resolve().parent
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Importa um CSV Compass como snapshot historico auditavel no SQLite v0.9.1.")
+    parser = argparse.ArgumentParser(description="Importa um CSV Compass como intervalo auditavel no SQLite v0.9.2.")
     parser.add_argument("csv", help="CSV exportado de Starlink Fleet Usage")
     parser.add_argument("--period", default="", help="Periodo opcional. Normalmente e detectado pelo nome do arquivo.")
     args = parser.parse_args()
@@ -29,8 +28,8 @@ def main():
     init_db()
     rows = CompassCollector(cfg, logger)._parse_csv(Path(args.csv), args.period)
     rows = enrich(rows, cfg)
-    history = get_history_by_units([r.get("unit") for r in rows], lookback_days=int(cfg.get("history", {}).get("lookback_days", 90)))
-    rows = apply_historical_analytics(rows, cfg, history)
+    # Persist the interval exactly as exported. Cycle analytics are reconstructed
+    # later from one-day intervals plus authoritative cycle-to-date ranges.
     for r in rows:
         r["recommended_action"] = _recommended_action(r)
     inserted = insert_rows(rows)
@@ -39,7 +38,7 @@ def main():
     print(f"Unidades lidas: {len(rows)}")
     print(f"Snapshots novos gravados: {inserted}")
     if inserted == 0:
-        print("Nenhum registro novo: o snapshot ja existia no banco (deduplicacao v0.9.1).")
+        print("Nenhum registro novo: o intervalo ja existia no banco (deduplicacao v0.9.2).")
 
 
 if __name__ == "__main__":

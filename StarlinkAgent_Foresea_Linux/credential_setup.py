@@ -19,7 +19,7 @@ def main() -> None:
     if os.geteuid() != 0:
         raise SystemExit("Execute como root: sudo /opt/starlink-agent/.venv/bin/python /opt/starlink-agent/credential_setup.py")
 
-    print("Configuracao segura - Foresea Starlink Agent v0.8.8 Linux")
+    print("Configuracao segura - Foresea Starlink Agent v0.9.2 Linux")
     print(f"Segredos serao gravados em {SECRETS_PATH} com permissao 640 root:{SERVICE_USER}.")
     print("O arquivo nao fica dentro da pasta do projeto.\n")
 
@@ -49,7 +49,7 @@ def main() -> None:
         })
 
     SECRETS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    body = "# Foresea Starlink Agent v0.8.8 - gerado por credential_setup.py\n"
+    body = "# Foresea Starlink Agent v0.9.2 - gerado por credential_setup.py\n"
     body += "\n".join(f"{k}={quote(v)}" for k, v in values.items()) + "\n"
     fd = os.open(SECRETS_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:

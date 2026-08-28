@@ -1,0 +1,33 @@
+Starlink Agent v0.9.2 - Correcao de semantica dos CSVs Compass
+
+PROBLEMA CORRIGIDO
+Os CSVs Starlink Fleet Usage representam consumo DO INTERVALO selecionado.
+Exemplos:
+- 2026-08-18_to_2026-08-18.csv = consumo do dia 18/08.
+- 2026-08-01_to_2026-08-28.csv = consumo agregado de 01/08 a 28/08.
+
+Versoes anteriores tratavam registros diarios como snapshots acumulados e misturavam
+arquivos diarios com arquivos de intervalo. Isso gerava saltos artificiais no grafico,
+GB/dia muito alto e previsoes de estouro incorretas.
+
+NOVA REGRA
+1. Arquivo de um unico dia alimenta a serie de consumo diario real.
+2. GB/dia = media dos ultimos dias reais (padrao: 7 dias).
+3. Tendencia compara medias diarias recentes; nao calcula delta entre consumos diarios.
+4. Consumo do ciclo = soma dos arquivos diarios disponiveis.
+5. Se existir um arquivo ciclo-ate-data (ex.: 01/08 a 28/08), ele e usado como total
+   autoritativo do ciclo, enquanto os arquivos diarios continuam sendo usados para ritmo.
+6. Intervalos de dois ou mais dias nao entram como pontos diarios no grafico.
+7. Se um intervalo cobre exatamente um unico dia ausente e todos os demais dias do
+   intervalo sao conhecidos, o dia faltante pode ser inferido pela diferenca.
+8. O grafico de percentual e reconstruido como acumulado do ciclo dia a dia.
+
+NAO E NECESSARIO APAGAR O SQLITE.
+A v0.9.2 interpreta corretamente os registros ja existentes no banco.
+Apos atualizar, execute:
+  sudo /opt/starlink-agent/sync-history-linux.sh
+  sudo systemctl restart starlink-dashboard.service
+
+VALIDACAO
+Com os CSVs diarios 02/08 a 19/08 fornecidos para teste, HTQ apresentou media recente
+real na ordem de 40-45 GB/dia, em vez de centenas de GB/dia artificiais.

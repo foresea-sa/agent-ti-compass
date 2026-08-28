@@ -10,8 +10,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from analytics.trends import apply_historical_analytics
-from database.db import get_history_by_units, init_db
+from analytics.cycle_view import build_cycle_view, load_records
+from database.db import init_db
 
 BASE = Path(__file__).resolve().parents[1]
 STATIC = Path(__file__).resolve().parent / "static"
@@ -53,12 +53,12 @@ def _display_row(row: dict) -> dict:
         "quota_gb", "priority_gb", "booster_gb", "standard_gb", "overage_gb", "total_gb", "remaining_gb",
         "usage_pct", "portal_usage_pct", "status", "rate_gb_day", "trend", "history_points", "days_to_limit",
         "forecast_limit_date", "cycle_start_date", "cycle_end_date", "projected_cycle_end_gb", "projected_overage_gb",
-        "forecast_risk", "projection_method", "data_age_days", "data_freshness", "forecast_confidence",
+        "forecast_risk", "projection_method", "data_age_days", "data_freshness", "forecast_confidence", "daily_coverage_pct", "daily_points",
     }
     data = {k: row.get(k) for k in keys}
     for key in [
         "quota_gb", "priority_gb", "booster_gb", "standard_gb", "overage_gb", "total_gb", "remaining_gb",
-        "usage_pct", "portal_usage_pct", "projected_overage_gb", "data_age_days",
+        "usage_pct", "portal_usage_pct", "projected_overage_gb", "data_age_days", "daily_coverage_pct", "daily_points",
     ]:
         data[key] = _to_float(data.get(key))
     for key in ["rate_gb_day", "days_to_limit", "projected_cycle_end_gb"]:
@@ -124,18 +124,16 @@ def dashboard_data(days: int = 7) -> dict:
             "history": {},
         }
 
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        latest_raw = [dict(r) for r in _latest_rows(conn)]
-        history = _history_rows(conn, days)
+    lookback = int(cfg.get("history", {}).get("lookback_days", 120))
+    records = load_records(DB_PATH, lookback_days=lookback)
+    cycle_rows, full_history = build_cycle_view(records, cfg)
+    latest = [_display_row(r) for r in cycle_rows]
 
-    # v0.9.1: recalcula ritmo/projecao ao servir o dashboard. Isso corrige
-    # snapshots antigos que tenham sido gravados com uma formula anterior.
-    if latest_raw:
-        lookback = int(cfg.get("history", {}).get("lookback_days", 90))
-        hist_by_unit = get_history_by_units([r.get("unit") for r in latest_raw], lookback_days=lookback)
-        latest_raw = apply_historical_analytics(latest_raw, cfg, hist_by_unit)
-    latest = [_display_row(r) for r in latest_raw]
+    cutoff = (datetime.now().date() - timedelta(days=max(days - 1, 0))).isoformat()
+    history = {}
+    for unit, series in full_history.items():
+        filtered = [p for p in series if str(p.get("date") or "") >= cutoff]
+        history[unit] = filtered
 
     total_usage = sum(r["total_gb"] for r in latest)
     total_quota = sum(r["quota_gb"] for r in latest)
@@ -171,7 +169,7 @@ def dashboard_data(days: int = 7) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "StarlinkDashboard/0.9.1"
+    server_version = "StarlinkDashboard/0.9.2"
 
     def _common_headers(self, content_type: str, content_length: int | None = None, cache: str = "no-store"):
         self.send_header("Content-Type", content_type)
@@ -206,7 +204,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(dashboard_data(days))
             return
         if parsed.path == "/health":
-            self._send_json({"status": "ok", "version": "0.9.1", "db_exists": DB_PATH.exists()})
+            self._send_json({"status": "ok", "version": "0.9.2", "db_exists": DB_PATH.exists()})
             return
         if parsed.path == "/logo.png":
             logo = ASSETS / "logo.png"
@@ -229,7 +227,7 @@ def run():
     port = int(dash.get("port", 8787))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     httpd = ThreadingHTTPServer((host, port), Handler)
-    logger.info("Dashboard Starlink v0.9.1 em http://%s:%s", host, port)
+    logger.info("Dashboard Starlink v0.9.2 em http://%s:%s", host, port)
     if host not in {"127.0.0.1", "localhost", "::1"}:
         logger.warning("Dashboard exposto fora do localhost. Restrinja o acesso por firewall/VLAN; esta versao nao implementa autenticacao web.")
     try:

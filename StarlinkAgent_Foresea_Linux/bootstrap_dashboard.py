@@ -6,10 +6,9 @@ import sqlite3
 from pathlib import Path
 
 from agent import _recommended_action, enrich
-from analytics.trends import apply_historical_analytics
 from collectors.compass import CompassCollector
 from collectors.starlink_api import StarlinkAPICollector
-from database.db import DB_PATH, get_history_by_units, init_db, insert_rows
+from database.db import DB_PATH, init_db, insert_rows
 
 BASE = Path(__file__).resolve().parent
 CONFIG = BASE / "config.json"
@@ -51,9 +50,7 @@ def raw_csv_candidates() -> list[Path]:
 
 def process_rows(rows: list[dict], cfg: dict) -> int:
     rows = enrich(rows, cfg)
-    lookback = int(cfg.get("history", {}).get("lookback_days", 90))
-    history = get_history_by_units([r.get("unit") for r in rows], lookback_days=lookback)
-    rows = apply_historical_analytics(rows, cfg, history)
+    # Store interval records as-is. v0.9.2 builds cycle analytics at read time.
     for row in rows:
         row["recommended_action"] = _recommended_action(row)
     return insert_rows(rows)
@@ -107,7 +104,7 @@ def main() -> int:
     live_if_empty = bool(dash.get("bootstrap_live_collect_if_empty", True))
 
     try:
-        # v0.9.1: sincroniza TODOS os CSVs de data/raw mesmo quando o DB ja possui
+        # v0.9.2: sincroniza TODOS os CSVs de data/raw mesmo quando o DB ja possui
         # registros. A deduplicacao por snapshot_key torna esta operacao idempotente.
         if import_all_raw or (existing_before == 0 and prefer_raw):
             import_raw_history(cfg)

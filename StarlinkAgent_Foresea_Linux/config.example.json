@@ -86,7 +86,9 @@
     "max_data_age_days": 2,
     "use_compass_period_dates": true,
     "fallback_rate_mode": "cycle_average",
-    "baseline_rate_gb_day": {}
+    "baseline_rate_gb_day": {},
+    "rate_recent_days": 7,
+    "interval_semantics": "compass_interval_totals"
   },
   "thresholds": {
     "warning": 70,
