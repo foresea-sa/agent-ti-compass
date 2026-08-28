@@ -75,7 +75,8 @@
   },
   "projection": {
     "enabled": true,
-    "cycle_start_day": 1
+    "cycle_start_day": 1,
+    "cycle_start_day_by_unit": {}
   },
   "history": {
     "lookback_days": 90,
@@ -83,7 +84,9 @@
     "recent_window_days": 3,
     "reset_tolerance_gb": 25,
     "max_data_age_days": 2,
-    "use_compass_period_dates": true
+    "use_compass_period_dates": true,
+    "fallback_rate_mode": "cycle_average",
+    "baseline_rate_gb_day": {}
   },
   "thresholds": {
     "warning": 70,
@@ -110,6 +113,7 @@
     "default_days": 7,
     "bootstrap_on_start": true,
     "bootstrap_prefer_latest_raw_csv": true,
-    "bootstrap_live_collect_if_empty": true
+    "bootstrap_live_collect_if_empty": true,
+    "bootstrap_import_all_raw_csvs": true
   }
 }

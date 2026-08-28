@@ -1,0 +1,49 @@
+Starlink Agent v0.9.1 - Correcao GB/dia
+========================================
+
+Problema corrigido
+------------------
+A versao anterior usava period_days extraido do nome do CSV como divisor de total_gb quando ainda nao havia historico suficiente.
+Exemplo incorreto: HTQ 1.21 TB / 2 dias (27-28/08) = ~606 GB/dia.
+
+O CSV Starlink Fleet Usage contem um valor acumulado. O intervalo selecionado/exportado nao deve ser usado automaticamente para dividir esse acumulado.
+
+Nova regra
+----------
+1. Com >=2 snapshots em dias diferentes no mesmo ciclo: GB/dia = crescimento real do acumulado (regressao/delta historico).
+2. Sem historico: pode usar baseline_rate_gb_day configurado por unidade.
+3. Sem baseline: fallback_rate_mode=cycle_average usa consumo acumulado / dias transcorridos do ciclo configurado.
+4. fallback_rate_mode=none exibe -- ate existir historico real.
+
+Dashboard
+---------
+- Recalcula ritmo e previsoes dinamicamente ao consultar o SQLite; registros antigos nao mantem mais a formula errada na tela.
+- Valores estimados aparecem com ~.
+- Valores historicos reais aparecem sem ~.
+- Sem estimativa/historico aparece --.
+- O bootstrap importa todos os CSVs existentes em data/raw para formar historico, com deduplicacao automatica.
+
+Configuracao
+------------
+projection.cycle_start_day define o inicio do ciclo global.
+projection.cycle_start_day_by_unit permite sobrescrever por unidade.
+
+Exemplo:
+  "projection": {
+    "cycle_start_day": 1,
+    "cycle_start_day_by_unit": {
+      "HTQ": 9
+    }
+  }
+
+Se HTQ tiver cerca de 1.21 TB acumulados em 28/08 e o ciclo iniciar em 09/08,
+a media de ciclo fica em aproximadamente 60 GB/dia. O valor correto deve usar o dia real de faturamento/renovacao do plano.
+
+history.fallback_rate_mode:
+- "cycle_average" = estimativa ate haver historico real.
+- "none" = nao estima GB/dia sem pelo menos 2 snapshots.
+
+history.baseline_rate_gb_day pode informar um valor operacional temporario por unidade, por exemplo:
+  "baseline_rate_gb_day": {"HTQ": 60}
+
+Recomendacao: prefira historico real. Use baseline apenas como contingencia.

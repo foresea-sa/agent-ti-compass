@@ -15,7 +15,7 @@ BASE = Path(__file__).resolve().parent
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Gera PDF/XLSX v0.8 a partir de um CSV Compass, sem acessar o portal.")
+    parser = argparse.ArgumentParser(description="Gera PDF/XLSX v0.9.1 a partir de um CSV Compass, sem acessar o portal.")
     parser.add_argument("csv", help="Caminho para o CSV Starlink Fleet Usage")
     parser.add_argument("--period", default="", help="Rotulo do periodo; se omitido, tenta ler do nome do CSV")
     parser.add_argument("--ignore-db-history", action="store_true", help="Gera a previsao sem usar snapshots anteriores do SQLite")

@@ -1,4 +1,4 @@
-DASHBOARD STARLINK v0.8 - LINUX
+DASHBOARD STARLINK v0.9.1 - LINUX
 ==============================
 O dashboard le diretamente database/starlink.db.
 

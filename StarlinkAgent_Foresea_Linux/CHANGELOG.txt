@@ -1,3 +1,11 @@
+v0.9.1
+- Corrige GB/dia: period_days do CSV nao e mais usado como divisor do consumo acumulado.
+- Dashboard recalcula analytics ao vivo usando historico real.
+- Bootstrap sincroniza todos os CSVs de data/raw para formar historico.
+- Fallback configuravel: cycle_average, baseline por unidade ou none.
+- cycle_start_day pode ser sobrescrito por unidade.
+- Ritmos estimados sao marcados com ~ no dashboard.
+
 v0.8.9
 - Corrige ReportLab no perfil legacy (Ubuntu 20.04/Python 3.8): 4.4.2.
 - Adiciona smoke test real de PDF no instalador.

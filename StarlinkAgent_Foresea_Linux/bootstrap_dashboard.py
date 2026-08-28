@@ -44,7 +44,9 @@ def raw_csv_candidates() -> list[Path]:
     if not RAW_DIR.exists():
         return []
     candidates = [p for p in RAW_DIR.glob("*.csv") if p.is_file()]
-    return sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)
+    # Mais antigo primeiro: se houver dois arquivos para o mesmo period_end,
+    # o mais novo sera inserido depois e vencera a deduplicacao diaria.
+    return sorted(candidates, key=lambda p: (p.stat().st_mtime, p.name))
 
 
 def process_rows(rows: list[dict], cfg: dict) -> int:
@@ -57,25 +59,26 @@ def process_rows(rows: list[dict], cfg: dict) -> int:
     return insert_rows(rows)
 
 
-def seed_from_raw(cfg: dict) -> int:
+def import_raw_history(cfg: dict) -> int:
     candidates = raw_csv_candidates()
     if not candidates:
         return 0
     collector = CompassCollector(cfg, logger)
+    inserted_total = 0
+    logger.info("Sincronizando historico local: %s CSV(s) encontrado(s) em %s", len(candidates), RAW_DIR)
     for csv_path in candidates:
-        logger.info("Banco vazio. Tentando carga inicial pelo CSV local: %s", csv_path)
         try:
             rows = collector._parse_csv(csv_path, "")
             if not rows:
                 logger.warning("CSV nao produziu unidades validas: %s", csv_path)
                 continue
             inserted = process_rows(rows, cfg)
-            logger.info("Carga inicial via CSV concluida: unidades=%s snapshots_novos=%s", len(rows), inserted)
-            if inserted > 0 or snapshot_count() > 0:
-                return inserted
+            inserted_total += inserted
+            logger.info("CSV historico processado: %s | unidades=%s | snapshots_novos=%s", csv_path.name, len(rows), inserted)
         except Exception as exc:
             logger.warning("CSV local ignorado por erro (%s): %s", csv_path, exc)
-    return 0
+    logger.info("Sincronizacao de data/raw concluida: snapshots_novos=%s | total_db=%s", inserted_total, snapshot_count())
+    return inserted_total
 
 
 def seed_live(cfg: dict) -> int:
@@ -98,20 +101,18 @@ def main() -> int:
         logger.info("Carga inicial do dashboard desabilitada em config.json.")
         return 0
 
-    existing = snapshot_count()
-    if existing > 0:
-        logger.info("SQLite ja possui %s snapshot(s). Carga inicial nao e necessaria.", existing)
-        return 0
-
+    existing_before = snapshot_count()
+    import_all_raw = bool(dash.get("bootstrap_import_all_raw_csvs", True))
     prefer_raw = bool(dash.get("bootstrap_prefer_latest_raw_csv", True))
     live_if_empty = bool(dash.get("bootstrap_live_collect_if_empty", True))
 
     try:
-        if prefer_raw:
-            inserted = seed_from_raw(cfg)
-            if inserted > 0 or snapshot_count() > 0:
-                return 0
-        if live_if_empty:
+        # v0.9.1: sincroniza TODOS os CSVs de data/raw mesmo quando o DB ja possui
+        # registros. A deduplicacao por snapshot_key torna esta operacao idempotente.
+        if import_all_raw or (existing_before == 0 and prefer_raw):
+            import_raw_history(cfg)
+
+        if snapshot_count() == 0 and live_if_empty:
             seed_live(cfg)
     except Exception:
         logger.exception("Falha na carga inicial do dashboard. O painel sera iniciado mesmo assim.")

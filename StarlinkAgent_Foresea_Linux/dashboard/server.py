@@ -10,7 +10,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from database.db import init_db
+from analytics.trends import apply_historical_analytics
+from database.db import get_history_by_units, init_db
 
 BASE = Path(__file__).resolve().parents[1]
 STATIC = Path(__file__).resolve().parent / "static"
@@ -57,10 +58,12 @@ def _display_row(row: dict) -> dict:
     data = {k: row.get(k) for k in keys}
     for key in [
         "quota_gb", "priority_gb", "booster_gb", "standard_gb", "overage_gb", "total_gb", "remaining_gb",
-        "usage_pct", "portal_usage_pct", "rate_gb_day", "days_to_limit", "projected_cycle_end_gb", "projected_overage_gb",
-        "data_age_days",
+        "usage_pct", "portal_usage_pct", "projected_overage_gb", "data_age_days",
     ]:
         data[key] = _to_float(data.get(key))
+    for key in ["rate_gb_day", "days_to_limit", "projected_cycle_end_gb"]:
+        value = data.get(key)
+        data[key] = None if value is None else _to_float(value)
     return data
 
 
@@ -123,8 +126,16 @@ def dashboard_data(days: int = 7) -> dict:
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
-        latest = [_display_row(r) for r in _latest_rows(conn)]
+        latest_raw = [dict(r) for r in _latest_rows(conn)]
         history = _history_rows(conn, days)
+
+    # v0.9.1: recalcula ritmo/projecao ao servir o dashboard. Isso corrige
+    # snapshots antigos que tenham sido gravados com uma formula anterior.
+    if latest_raw:
+        lookback = int(cfg.get("history", {}).get("lookback_days", 90))
+        hist_by_unit = get_history_by_units([r.get("unit") for r in latest_raw], lookback_days=lookback)
+        latest_raw = apply_historical_analytics(latest_raw, cfg, hist_by_unit)
+    latest = [_display_row(r) for r in latest_raw]
 
     total_usage = sum(r["total_gb"] for r in latest)
     total_quota = sum(r["quota_gb"] for r in latest)
@@ -160,7 +171,7 @@ def dashboard_data(days: int = 7) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "StarlinkDashboard/0.8"
+    server_version = "StarlinkDashboard/0.9.1"
 
     def _common_headers(self, content_type: str, content_length: int | None = None, cache: str = "no-store"):
         self.send_header("Content-Type", content_type)
@@ -195,7 +206,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(dashboard_data(days))
             return
         if parsed.path == "/health":
-            self._send_json({"status": "ok", "version": "0.8", "db_exists": DB_PATH.exists()})
+            self._send_json({"status": "ok", "version": "0.9.1", "db_exists": DB_PATH.exists()})
             return
         if parsed.path == "/logo.png":
             logo = ASSETS / "logo.png"
@@ -218,7 +229,7 @@ def run():
     port = int(dash.get("port", 8787))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     httpd = ThreadingHTTPServer((host, port), Handler)
-    logger.info("Dashboard Starlink v0.8 em http://%s:%s", host, port)
+    logger.info("Dashboard Starlink v0.9.1 em http://%s:%s", host, port)
     if host not in {"127.0.0.1", "localhost", "::1"}:
         logger.warning("Dashboard exposto fora do localhost. Restrinja o acesso por firewall/VLAN; esta versao nao implementa autenticacao web.")
     try:
