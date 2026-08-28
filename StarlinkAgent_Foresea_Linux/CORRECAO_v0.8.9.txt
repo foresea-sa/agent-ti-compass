@@ -1,0 +1,20 @@
+CORRECAO v0.8.9 - UBUNTU 20.04 / PYTHON 3.8 / REPORTLAB
+
+Sintoma:
+  TypeError: 'usedforsecurity' is an invalid keyword argument for openssl_md5()
+
+ao gerar o PDF em Ubuntu 20.04 com Python 3.8.
+
+Causa:
+  ReportLab 4.4.3 passou a chamar hashlib.md5(usedforsecurity=False).
+  O hashlib do Python 3.8.2 fornecido pelo Ubuntu 20.04 nao aceita esse argumento.
+
+Correcao:
+  - perfil legacy fixa reportlab==4.4.2;
+  - perfil modern continua em reportlab==4.4.3;
+  - instalador executa smoke test de geracao PDF antes de concluir;
+  - diagnostico-linux.sh testa geracao PDF;
+  - novo test-report-linux.sh evita necessidade de sudo -u starlinkagent.
+
+Atualizacao rapida no Ubuntu 20.04:
+  sudo /opt/starlink-agent/.venv/bin/pip install --upgrade --force-reinstall 'reportlab==4.4.2'

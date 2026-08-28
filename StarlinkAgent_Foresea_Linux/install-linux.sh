@@ -53,7 +53,7 @@ log "Arquitetura: $ARCH"
 # -----------------------------------------------------------------------------
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y python3 python3-venv python3-pip ca-certificates curl ffmpeg
+apt-get install -y python3 python3-venv python3-pip ca-certificates curl ffmpeg util-linux
 
 PYTHON_BIN="$(command -v python3)"
 PY_VERSION="$($PYTHON_BIN -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
@@ -168,6 +168,8 @@ HELPER_SCRIPTS=(
   run-agent-linux.sh
   run-dashboard-linux.sh
   last-video-linux.sh
+  test-report-linux.sh
+  bootstrap-dashboard-linux.sh
 )
 for helper in "${HELPER_SCRIPTS[@]}"; do
   [[ -f "$SOURCE_DIR/$helper" ]] || fail "Script obrigatorio ausente no pacote: $helper"
@@ -224,6 +226,28 @@ from playwright.sync_api import sync_playwright
 print("Dependencias Python: OK")
 PY
 
+# Smoke test PDF: captura incompatibilidades funcionais entre ReportLab, Python e OpenSSL
+# antes de declarar a instalacao concluida.
+log "Validando geracao minima de PDF..."
+runuser -u "$SERVICE_USER" -- "$INSTALL_DIR/.venv/bin/python" - <<'PY'
+import os, tempfile
+from reportlab.pdfgen import canvas
+fd, path = tempfile.mkstemp(prefix="starlink-reportlab-", suffix=".pdf")
+os.close(fd)
+try:
+    c = canvas.Canvas(path)
+    c.drawString(72, 800, "Starlink Agent PDF smoke test")
+    c.save()
+    if os.path.getsize(path) < 100:
+        raise RuntimeError("PDF de teste foi gerado vazio")
+    print("ReportLab PDF: OK")
+finally:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+PY
+
 # -----------------------------------------------------------------------------
 # 6) Chromium/Playwright
 # -----------------------------------------------------------------------------
@@ -270,7 +294,7 @@ render_unit "$INSTALL_DIR/linux/systemd/starlink-dashboard.service.in" /etc/syst
 systemctl daemon-reload
 
 # Validacao final dos comandos documentados.
-for helper in configure-credentials.sh test-login-linux.sh validate-secrets-linux.sh; do
+for helper in configure-credentials.sh test-login-linux.sh validate-secrets-linux.sh test-report-linux.sh bootstrap-dashboard-linux.sh; do
   [[ -x "$INSTALL_DIR/$helper" ]] || fail "Pos-instalacao: $INSTALL_DIR/$helper nao foi instalado corretamente."
 done
 log "Scripts operacionais: OK"
@@ -305,6 +329,8 @@ PROXIMOS PASSOS:
 6) Dashboard local: http://127.0.0.1:8787
 7) Diagnostico do ambiente:
    sudo $INSTALL_DIR/diagnostico-linux.sh
+8) Teste de relatorio com CSV local:
+   sudo $INSTALL_DIR/test-report-linux.sh /caminho/arquivo.csv --period "Teste"
 
 Para mudar o horario padrao de 06:00, edite /etc/systemd/system/starlink-agent.timer
 e execute: sudo systemctl daemon-reload && sudo systemctl restart starlink-agent.timer

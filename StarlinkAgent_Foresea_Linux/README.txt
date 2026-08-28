@@ -1,4 +1,4 @@
-FORESEA STARLINK CONSUMPTION AGENT v0.8.3.1 - LINUX
+FORESEA STARLINK CONSUMPTION AGENT v0.9.3.1 - LINUX
 ================================================
 
 Objetivo
@@ -45,6 +45,6 @@ Arquivos importantes
 
 Documentacao completa: LINUX_PASSO_A_PASSO.txt
 
-v0.8.8 Linux - video de diagnostico
+v0.9.0 Linux - video de diagnostico
 O teste de login grava a navegacao headless e gera um MP4 compacto em logs/debug/videos.
 Use: sudo /opt/starlink-agent/last-video-linux.sh

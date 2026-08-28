@@ -107,6 +107,9 @@
     "host": "127.0.0.1",
     "port": 8787,
     "refresh_seconds": 60,
-    "default_days": 7
+    "default_days": 7,
+    "bootstrap_on_start": true,
+    "bootstrap_prefer_latest_raw_csv": true,
+    "bootstrap_live_collect_if_empty": true
   }
 }

@@ -1,3 +1,9 @@
+v0.8.9
+- Corrige ReportLab no perfil legacy (Ubuntu 20.04/Python 3.8): 4.4.2.
+- Adiciona smoke test real de PDF no instalador.
+- Adiciona teste PDF no diagnostico Linux.
+- Adiciona test-report-linux.sh para executar relatorios como starlinkagent via runuser.
+
 v0.8.7
 - Corrige falso positivo de pagina Starlink Fleet Usage pronta.
 - Aguarda o botao CSV real ficar visivel antes de iniciar o download.

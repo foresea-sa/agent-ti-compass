@@ -1,0 +1,28 @@
+STARLINK AGENT v0.9.0 - CARGA INICIAL DO DASHBOARD
+
+Quando starlink-dashboard.service inicia:
+1. Executa bootstrap-dashboard-linux.sh (ExecStartPre).
+2. Se o SQLite ja possui snapshots, nao coleta novamente.
+3. Se o SQLite estiver vazio, tenta importar o CSV mais recente de data/raw.
+4. Se nao houver CSV utilizavel, executa uma coleta ao vivo no Compass.
+5. Grava os snapshots no SQLite e inicia o dashboard.
+6. Se a carga inicial falhar, o dashboard ainda inicia; veja logs/dashboard-bootstrap-service.log.
+
+Protecao de concorrencia:
+- bootstrap do dashboard e starlink-agent.service usam o mesmo flock em data/collection.lock.
+- evita duas sessoes Compass simultaneas.
+
+Configuracao em config.json / dashboard:
+  "bootstrap_on_start": true,
+  "bootstrap_prefer_latest_raw_csv": true,
+  "bootstrap_live_collect_if_empty": true
+
+Carga manual:
+  sudo /opt/starlink-agent/bootstrap-dashboard-linux.sh
+
+Reiniciar dashboard e disparar bootstrap:
+  sudo systemctl restart starlink-dashboard.service
+
+Logs:
+  sudo tail -100 /opt/starlink-agent/logs/dashboard-bootstrap-service.log
+  sudo journalctl -u starlink-dashboard.service -n 100 --no-pager

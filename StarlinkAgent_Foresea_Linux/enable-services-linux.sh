@@ -11,6 +11,8 @@ fi
 systemctl daemon-reload
 systemctl enable --now starlink-agent.timer
 systemctl enable --now starlink-dashboard.service
+# Reinicia para aplicar ExecStartPre/carga inicial em upgrades.
+systemctl restart starlink-dashboard.service
 systemctl --no-pager --full status starlink-agent.timer || true
 systemctl --no-pager --full status starlink-dashboard.service || true
 echo "Dashboard: http://127.0.0.1:8787"
