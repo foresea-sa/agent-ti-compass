@@ -482,36 +482,118 @@ class CompassCollector:
             pass
         return ""
 
-    def _download_csv(self, page) -> Path:
+    def _csv_locator(self, page):
+        """Retorna o botao/link CSV visivel da pagina de Starlink Fleet Usage."""
+        candidates = [
+            page.get_by_role("button", name=re.compile(r"^CSV$", re.I)),
+            page.get_by_role("link", name=re.compile(r"^CSV$", re.I)),
+            page.locator("button").filter(has_text=re.compile(r"^\s*CSV\s*$", re.I)),
+            page.locator("a").filter(has_text=re.compile(r"^\s*CSV\s*$", re.I)),
+            page.get_by_text("CSV", exact=True),
+        ]
+        return self._first_visible(candidates)
+
+    def _wait_for_usage_page_ready(self, page):
+        """Aguarda a tela real de Starlink Fleet Usage ficar pronta.
+
+        Nao usa apenas o texto 'Starlink Fleet Usage' como marcador porque o texto
+        pode existir no menu/dropdown antes de o relatorio terminar de renderizar.
+        O criterio principal e o botao CSV visivel, que e exatamente o recurso que
+        sera usado pela coleta.
+        """
+        cfg = self.config["compass"]
+        timeout_ms = int(cfg.get("usage_page_timeout_ms", 120000))
+        poll_ms = max(250, int(cfg.get("usage_poll_interval_ms", 1000)))
+        deadline = time.time() + timeout_ms / 1000.0
+        next_log = time.time() + 10
+        started = time.time()
+
+        self.logger.info(
+            "Aguardando renderizacao completa do Starlink Fleet Usage e botao CSV (timeout=%ss).",
+            int(timeout_ms / 1000),
+        )
+
+        while time.time() < deadline:
+            if self._session_expired(page):
+                return None
+
+            csv_button = self._csv_locator(page)
+            if csv_button is not None:
+                elapsed = int(time.time() - started)
+                self.logger.info(
+                    "Starlink Fleet Usage pronto. Botao CSV visivel apos %ss.",
+                    elapsed,
+                )
+                return csv_button
+
+            if time.time() >= next_log:
+                elapsed = int(time.time() - started)
+                try:
+                    ready_state = page.evaluate("document.readyState")
+                except Exception:
+                    ready_state = "unknown"
+                try:
+                    button_count = page.locator("button").count()
+                except Exception:
+                    button_count = -1
+                try:
+                    csv_text_count = page.get_by_text("CSV", exact=True).count()
+                except Exception:
+                    csv_text_count = -1
+                try:
+                    xlsx_text_count = page.get_by_text("XLSX", exact=True).count()
+                except Exception:
+                    xlsx_text_count = -1
+                try:
+                    body_len = len(page.locator("body").inner_text(timeout=1000))
+                except Exception:
+                    body_len = -1
+                self.logger.info(
+                    "Starlink Fleet Usage ainda carregando (%ss; readyState=%s; botoes=%s; CSV=%s; XLSX=%s; body=%s chars).",
+                    elapsed, ready_state, button_count, csv_text_count, xlsx_text_count, body_len,
+                )
+                next_log = time.time() + 10
+
+            time.sleep(poll_ms / 1000.0)
+
+        return None
+
+    def _download_csv(self, page, csv_button=None) -> Path:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        selectors = [
-            lambda: page.get_by_role("button", name=re.compile(r"^CSV$", re.I)),
-            lambda: page.get_by_text("CSV", exact=True),
-            lambda: page.locator("button").filter(has_text=re.compile(r"CSV", re.I)),
-        ]
-        last_error = None
-        for get_locator in selectors:
-            try:
-                locator = get_locator()
-                if locator.count() < 1:
-                    continue
-                with page.expect_download(timeout=self.config["compass"].get("timeout_ms", 60000)) as info:
-                    locator.first.click()
-                download = info.value
-                suggested = str(download.suggested_filename or "starlink_fleet_usage.csv")
-                safe = re.sub(r"[^A-Za-z0-9._-]+", "_", suggested).strip("_") or "starlink_fleet_usage.csv"
-                destination = RAW_DIR / f"{stamp}_{safe}"
-                download.save_as(str(destination))
-                self.logger.info("CSV do Compass salvo em %s (nome portal: %s)", destination, suggested)
-                return destination
-            except Exception as exc:
-                last_error = exc
+        # Defensive wait: even if collect() already waited for readiness, do not
+        # assume the SPA is stable if this method is reused independently.
+        if csv_button is None:
+            csv_button = self._wait_for_usage_page_ready(page)
 
-        shot = self._failure_screenshot(page, "csv_button_not_found")
-        raise RuntimeError(
-            f"Nao foi possivel acionar o botao CSV do Compass. Screenshot: {shot}. Erro: {last_error}"
-        )
+        if csv_button is None:
+            diag = self._diagnostic_snapshot(page, "csv_button_not_found")
+            raise RuntimeError(
+                "O botao CSV nao apareceu dentro do timeout da pagina Starlink Fleet Usage. "
+                f"Diagnostico: {diag.get('meta')} | Screenshot: {diag.get('screenshot')}"
+            )
+
+        timeout_ms = int(self.config["compass"].get("download_timeout_ms", 90000))
+        try:
+            # Em SPAs o botao pode ser substituido durante uma re-renderizacao.
+            # Revalide imediatamente antes do click.
+            if not csv_button.is_visible():
+                csv_button = self._csv_locator(page) or csv_button
+            with page.expect_download(timeout=timeout_ms) as info:
+                csv_button.click()
+            download = info.value
+            suggested = str(download.suggested_filename or "starlink_fleet_usage.csv")
+            safe = re.sub(r"[^A-Za-z0-9._-]+", "_", suggested).strip("_") or "starlink_fleet_usage.csv"
+            destination = RAW_DIR / f"{stamp}_{safe}"
+            download.save_as(str(destination))
+            self.logger.info("CSV do Compass salvo em %s (nome portal: %s)", destination, suggested)
+            return destination
+        except Exception as exc:
+            diag = self._diagnostic_snapshot(page, "csv_download_failed")
+            raise RuntimeError(
+                "O botao CSV apareceu, mas o download nao foi concluido. "
+                f"Diagnostico: {diag.get('meta')} | Screenshot: {diag.get('screenshot')}. Erro: {exc}"
+            ) from exc
 
     def _load_csv(self, path: Path) -> pd.DataFrame:
         attempts = [
@@ -805,49 +887,34 @@ class CompassCollector:
                     browser.close()
                     raise RuntimeError(f"Falha no login automatico do Compass. Screenshot: {shot}. Erro: {exc}")
 
-            # A pagina pode renderizar o titulo de formas diferentes. Considere pronta
-            # quando o titulo OU o botao CSV estiver visivel.
-            usage_timeout_ms = int(cfg.get("usage_page_timeout_ms", 120000))
-            deadline = time.time() + (usage_timeout_ms / 1000.0)
-            ready = False
-            while time.time() < deadline:
-                if self._session_expired(page):
-                    # Redirecionamento tardio para login: tente autenticar uma vez.
-                    try:
-                        self._login(page)
-                        self.logger.info("Reabrindo Starlink Fleet Usage apos estabilizacao: %s", usage_url)
-                        page.goto(usage_url, wait_until="domcontentloaded")
-                    except Exception as exc:
-                        diag = self._diagnostic_snapshot(page, "late_login_failed")
-                        browser.close()
-                        raise RuntimeError(f"Falha de autenticacao durante abertura do relatorio. Diagnostico: {diag}. Erro: {exc}")
-                markers = [
-                    page.get_by_text("Starlink Fleet Usage", exact=False),
-                    page.get_by_role("button", name=re.compile(r"^CSV$", re.I)),
-                    page.get_by_text("CSV", exact=True),
-                ]
-                for marker in markers:
-                    try:
-                        if marker.count() and marker.first.is_visible():
-                            ready = True
-                            break
-                    except Exception:
-                        continue
-                if ready:
-                    break
-                time.sleep(0.5)
+            # Aguarde o relatorio real ficar pronto. Nao use o texto do menu como
+            # sinal de readiness: ele pode aparecer antes do conteudo e do botao CSV.
+            csv_button = self._wait_for_usage_page_ready(page)
+            if csv_button is None and self._session_expired(page):
+                # Redirecionamento tardio para login: autentique e reabra uma vez.
+                try:
+                    self._login(page)
+                    self.logger.info("Reabrindo Starlink Fleet Usage apos estabilizacao: %s", usage_url)
+                    page.goto(usage_url, wait_until="domcontentloaded")
+                    csv_button = self._wait_for_usage_page_ready(page)
+                except Exception as exc:
+                    diag = self._diagnostic_snapshot(page, "late_login_failed")
+                    browser.close()
+                    raise RuntimeError(
+                        f"Falha de autenticacao durante abertura do relatorio. Diagnostico: {diag}. Erro: {exc}"
+                    )
 
-            if not ready:
+            if csv_button is None:
                 diag = self._diagnostic_snapshot(page, "usage_page_not_ready")
                 browser.close()
                 raise RuntimeError(
-                    "Pagina Starlink Fleet Usage nao ficou pronta. "
+                    "Pagina Starlink Fleet Usage nao ficou pronta dentro do timeout. "
                     f"URL final: {diag.get('url')}. Titulo: {diag.get('title')}. "
                     f"Diagnostico: {diag.get('meta')} | Screenshot: {diag.get('screenshot')}"
                 )
 
             period = self._period_label(page)
-            csv_path = self._download_csv(page)
+            csv_path = self._download_csv(page, csv_button=csv_button)
             # Mantem cookies/tokens para acelerar a proxima execucao. Se expirarem, o agente reloga sozinho.
             context.storage_state(path=str(state_path))
             browser.close()

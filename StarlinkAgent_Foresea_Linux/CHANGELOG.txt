@@ -1,3 +1,8 @@
+v0.8.7
+- Corrige falso positivo de pagina Starlink Fleet Usage pronta.
+- Aguarda o botao CSV real ficar visivel antes de iniciar o download.
+- Adiciona polling/log de readiness e timeout separado para download.
+
 CHANGELOG
 =========
 
