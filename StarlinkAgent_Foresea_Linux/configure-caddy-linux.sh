@@ -23,14 +23,61 @@ version_ge(){ [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" == "$2" ]
 log "=== Starlink Agent - Configuracao HTTPS com Caddy ==="
 log "Arquitetura: cliente -> HTTPS :443 -> Caddy -> 127.0.0.1:8787"
 
-# Instalar Caddy usando o gerenciador nativo da distribuicao.
-if ! command -v caddy >/dev/null 2>&1; then
+# Instalar Caddy. Em Ubuntu/Debian o pacote normalmente nao esta no repositorio
+# base (ex.: Ubuntu 20.04/Focal). Quando necessario, adicionamos o repositorio
+# oficial stable do Caddy/Cloudsmith conforme documentacao do projeto.
+install_caddy_apt() {
   command -v apt-get >/dev/null 2>&1 || fail "apt-get nao encontrado; instale Caddy manualmente."
   export DEBIAN_FRONTEND=noninteractive
+
+  log "Preparando dependencias para instalacao do Caddy..."
+  apt-get update
+  apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl gnupg ca-certificates
+
+  # Se a distribuicao ja oferece Caddy, use-a.
+  if apt-cache show caddy >/dev/null 2>&1; then
+    log "Pacote Caddy encontrado nos repositorios atuais. Instalando..."
+    if apt-get install -y caddy; then
+      return 0
+    fi
+    log "Pacote encontrado, mas a instalacao falhou. Tentando repositorio oficial Caddy stable..."
+  else
+    log "Pacote Caddy nao encontrado nos repositorios atuais. Adicionando repositorio oficial stable..."
+  fi
+
+  install -d -m 0755 /usr/share/keyrings /etc/apt/sources.list.d
+
+  local key_url="https://dl.cloudsmith.io/public/caddy/stable/gpg.key"
+  local repo_url="https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt"
+  local key_file="/usr/share/keyrings/caddy-stable-archive-keyring.gpg"
+  local list_file="/etc/apt/sources.list.d/caddy-stable.list"
+  local tmp_key tmp_list
+  tmp_key="$(mktemp)"
+  tmp_list="$(mktemp)"
+  trap 'rm -f "$tmp_key" "$tmp_list"' RETURN
+
+  if ! curl -fL --retry 3 --connect-timeout 15 --max-time 90 "$key_url" -o "$tmp_key"; then
+    fail "Falha ao baixar a chave do repositorio oficial Caddy em dl.cloudsmith.io. Verifique proxy/firewall corporativo ou libere HTTPS para dl.cloudsmith.io."
+  fi
+  if ! gpg --dearmor --yes -o "$key_file" "$tmp_key"; then
+    fail "Falha ao converter/instalar a chave GPG do repositorio Caddy."
+  fi
+
+  if ! curl -fL --retry 3 --connect-timeout 15 --max-time 90 "$repo_url" -o "$tmp_list"; then
+    fail "Falha ao baixar a definicao do repositorio Caddy em dl.cloudsmith.io. Verifique proxy/firewall corporativo."
+  fi
+  install -m 0644 "$tmp_list" "$list_file"
+  chmod o+r "$key_file" "$list_file"
+
+  log "Repositorio oficial Caddy stable configurado: $list_file"
   apt-get update
   if ! apt-get install -y caddy; then
-    fail "Nao foi possivel instalar o pacote 'caddy' via apt. Configure o repositorio Caddy aprovado pela sua empresa e execute novamente."
+    fail "Repositorio Caddy foi configurado, mas 'apt-get install caddy' falhou. Execute 'apt-cache policy caddy' e verifique conectividade com dl.cloudsmith.io."
   fi
+}
+
+if ! command -v caddy >/dev/null 2>&1; then
+  install_caddy_apt
 fi
 
 CADDY_VERSION_RAW="$(caddy version 2>/dev/null || true)"

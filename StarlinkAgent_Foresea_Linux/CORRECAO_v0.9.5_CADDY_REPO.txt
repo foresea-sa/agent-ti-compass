@@ -1,0 +1,34 @@
+Foresea Starlink Agent v0.9.5 - Correcao instalacao do Caddy
+=============================================================
+
+Problema corrigido
+------------------
+Ubuntu 20.04/Focal pode nao disponibilizar o pacote caddy nos repositorios APT
+configurados por padrao. A v0.9.4 encerrava a configuracao quando 'apt install
+caddy' retornava "Unable to locate package caddy".
+
+Novo comportamento
+------------------
+configure-caddy-linux.sh agora:
+1. Detecta se o comando caddy ja existe.
+2. Instala dependencias APT necessarias.
+3. Tenta usar o pacote Caddy se ele ja estiver disponivel nos repositorios locais.
+4. Se nao estiver, adiciona automaticamente o repositorio oficial Caddy stable
+   hospedado no Cloudsmith:
+   https://dl.cloudsmith.io/public/caddy/stable/
+5. Instala o pacote caddy e continua a configuracao HTTPS.
+6. Se Cloudsmith estiver bloqueado por proxy/firewall, interrompe com uma mensagem
+   especifica indicando o host que precisa ser liberado.
+
+Arquivos criados pelo repositorio oficial
+------------------------------------------
+/usr/share/keyrings/caddy-stable-archive-keyring.gpg
+/etc/apt/sources.list.d/caddy-stable.list
+
+Requisitos de rede para esta etapa
+----------------------------------
+HTTPS/TCP 443 para dl.cloudsmith.io
+
+Em ambientes que exigem repositorios internos aprovados, nao adicione o repositorio
+externo sem a aprovacao da empresa; disponibilize o pacote Caddy pelo repositorio
+corporativo e execute configure-caddy-linux.sh novamente.
