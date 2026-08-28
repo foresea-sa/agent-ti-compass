@@ -119,6 +119,9 @@
     "bootstrap_import_all_raw_csvs": true,
     "consolidated_path": "/analise-consolidada",
     "landing_page": "localities",
-    "unit_pdf_enabled": true
+    "unit_pdf_enabled": true,
+    "reverse_proxy": "caddy",
+    "public_https_port": 443,
+    "consolidated_api_path": "/api/consolidated-dashboard"
   }
 }

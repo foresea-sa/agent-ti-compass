@@ -36,7 +36,7 @@
   <section class="panel alerts"><div class="panel-head"><h2>Alertas e previsão de franquia</h2><span class="subtitle">Prioriza estouro atual, previsto e risco alto</span></div><div id="alerts"></div></section>
 
   <section class="panel table-panel"><div class="panel-head"><h2>Visão consolidada por unidade</h2><span id="generatedAt" class="subtitle"></span></div><table class="table"><thead><tr><th>Unidade</th><th>Periodo</th><th>Consumo</th><th>Franquia</th><th>Uso</th><th>Status</th><th>GB/dia</th><th>Tendência</th><th>Risco</th><th>Confianca</th><th>Data 100%</th><th>Fim ciclo</th><th>Overage proj.</th><th>Dados</th><th>Service Line</th></tr></thead><tbody id="unitTable"></tbody></table></section>
-  <div class="footer"><span><span class="dot"></span>Dashboard consolidado v0.9.3</span><span id="autoRefresh">Atualização automática</span></div>
+  <div class="footer"><span><span class="dot"></span>Dashboard consolidado v0.9.4</span><span id="autoRefresh">Atualização automática</span></div>
 </div>
 <script>
 let days=7, data=null, selectedUnit=null, timer=null;
@@ -54,7 +54,7 @@ const chip=v=>`<span class="chip ${slug(v)}">${esc(v||'-')}</span>`;
 async function load(){
   $('refreshBtn').disabled=true;
   try{
-    const r=await fetch(`/api/dashboard?days=${days}`,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); data=await r.json(); render();
+    const r=await fetch(`/api/consolidated-dashboard?days=${days}`,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); data=await r.json(); render();
   }catch(e){$('ranking').innerHTML=`<div class="empty">Falha ao carregar o dashboard: ${esc(e.message)}</div>`}
   finally{$('refreshBtn').disabled=false}
 }

@@ -123,7 +123,7 @@ def _unit_pdf(unit: str) -> tuple[Path, str] | None:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "StarlinkDashboard/0.9.3"
+    server_version = "StarlinkDashboard/0.9.4"
 
     def _common_headers(self, content_type: str, content_length: int | None = None, cache: str = "no-store"):
         self.send_header("Content-Type", content_type); self.send_header("Cache-Control", cache)
@@ -151,6 +151,13 @@ class Handler(BaseHTTPRequestHandler):
             try: days = int((params.get("days") or ["7"])[0])
             except Exception: days = 7
             self._send_json(dashboard_data(days)); return
+        if path == "/api/consolidated-dashboard":
+            # Endpoint separado para permitir que o reverse proxy proteja a
+            # analise consolidada sem bloquear os cards da capa.
+            params = parse_qs(parsed.query)
+            try: days = int((params.get("days") or ["7"])[0])
+            except Exception: days = 7
+            self._send_json(dashboard_data(days)); return
         if path == "/api/unit":
             params = parse_qs(parsed.query); unit = (params.get("unit") or [""])[0]
             try: days = int((params.get("days") or ["30"])[0])
@@ -168,7 +175,7 @@ class Handler(BaseHTTPRequestHandler):
             pdf, filename = result
             self._send_bytes(pdf.read_bytes(), "application/pdf", cache="no-store", disposition=f'attachment; filename="{filename}"'); return
         if path == "/health":
-            self._send_json({"status": "ok", "version": "0.9.3", "db_exists": DB_PATH.exists(), "consolidated_path": _consolidated_path()}); return
+            self._send_json({"status": "ok", "version": "0.9.4", "db_exists": DB_PATH.exists(), "consolidated_path": _consolidated_path()}); return
         if path == "/logo.png":
             logo = ASSETS / "logo.png"
             if logo.exists(): self._send_bytes(logo.read_bytes(), "image/png", cache="public, max-age=300")
@@ -183,7 +190,7 @@ def run():
     init_db(); cfg = _config(); dash = cfg.get("dashboard", {}); host = str(dash.get("host", "127.0.0.1")); port = int(dash.get("port", 8787))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     httpd = ThreadingHTTPServer((host, port), Handler)
-    logger.info("Dashboard Starlink v0.9.3 em http://%s:%s", host, port)
+    logger.info("Dashboard Starlink v0.9.4 em http://%s:%s", host, port)
     logger.info("Analise consolidada (nao exibida na navegacao): %s", _consolidated_path())
     if host not in {"127.0.0.1", "localhost", "::1"}: logger.warning("Dashboard exposto fora do localhost. Restrinja o acesso por firewall/VLAN; ocultar a rota consolidada nao substitui autenticacao.")
     try: httpd.serve_forever()

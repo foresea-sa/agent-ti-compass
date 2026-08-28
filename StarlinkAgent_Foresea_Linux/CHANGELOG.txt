@@ -148,3 +148,11 @@ v0.8.8
 - Diagnostico: grava video da atividade no teste de login e converte para MP4 compacto via ffmpeg.
 - Diagnostico: videos em logs/debug/videos e helper last-video-linux.sh.
 - Mantida espera real pelo botao CSV antes do download.
+
+v0.9.4
+- Arquitetura de producao com Caddy em HTTPS/TCP 443 e backend restrito a 127.0.0.1:8787.
+- Configurador interativo configure-caddy-linux.sh com TLS Internal CA ou certificado corporativo.
+- Basic Auth no consolidado e em endpoint API dedicado /api/consolidated-dashboard.
+- Capa e dashboards individuais continuam sem depender da API protegida.
+- Deteccao automatica de Caddy <2.8 (basicauth) e >=2.8 (basic_auth).
+- Diagnostico Caddy, exportacao segura da Root CA publica e desativacao/rollback operacional.

@@ -1,0 +1,34 @@
+STARLINK AGENT v0.9.4 - ARQUITETURA HTTPS COM CADDY
+====================================================
+
+Arquitetura de producao:
+  Usuarios -> HTTPS TCP/443 -> Caddy -> 127.0.0.1:8787 -> Dashboard -> SQLite
+
+Principios:
+- O Dashboard Python NAO deve escutar em 0.0.0.0; use 127.0.0.1:8787.
+- Exponha somente 443/TCP. A porta 80 e opcional para redirect HTTP->HTTPS.
+- /analise-consolidada e /api/consolidated-dashboard sao protegidos pelo mesmo Basic Auth.
+- A capa, dashboards individuais e PDFs por unidade permanecem acessiveis na rede interna.
+- "URL escondida" nao e mecanismo de seguranca; a protecao real e feita no Caddy.
+
+Configurar:
+  sudo /opt/starlink-agent/configure-caddy-linux.sh
+
+Diagnosticar:
+  sudo /opt/starlink-agent/diagnostico-caddy-linux.sh
+
+TLS:
+1) Caddy Internal CA: adequado para primeiro rollout. Exporte somente a Root CA publica:
+     sudo /opt/starlink-agent/export-caddy-root-ca-linux.sh
+   Distribua o arquivo /opt/starlink-agent/output/caddy-root-ca.crt via GPO/MDM/PKI.
+   NUNCA distribua a chave privada da CA.
+
+2) Certificado corporativo: informe certificado e chave ao configurador. A chave sera copiada
+   para /etc/caddy/certs com acesso restrito ao servico Caddy.
+
+Logs:
+  journalctl -u caddy
+  /var/log/caddy/starlink-dashboard-access.log
+
+Desabilitar proxy HTTPS sem remover o agente:
+  sudo /opt/starlink-agent/disable-caddy-linux.sh

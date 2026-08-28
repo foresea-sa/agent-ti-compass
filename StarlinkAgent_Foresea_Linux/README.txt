@@ -55,3 +55,14 @@ CSVs de um dia sao consumo diario; CSVs multi-dia sao agregados do intervalo. O 
 Para sincronizar todos os CSVs existentes em data/raw e atualizar o dashboard:
   sudo /opt/starlink-agent/sync-history-linux.sh
 Detalhes: CORRECAO_v0.9.3_INTERVALOS.txt
+
+HTTPS / PRODUCAO (v0.9.4)
+-------------------------
+Para publicar o Dashboard em HTTPS/TCP 443 com Caddy e manter o backend restrito a localhost:
+  sudo /opt/starlink-agent/configure-caddy-linux.sh
+
+Diagnostico:
+  sudo /opt/starlink-agent/diagnostico-caddy-linux.sh
+
+A pagina consolidada e seu endpoint dedicado ficam protegidos por Basic Auth no reverse proxy.
+Consulte CADDY_HTTPS_v0.9.4.txt.

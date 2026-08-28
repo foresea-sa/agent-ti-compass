@@ -161,7 +161,7 @@ log "Deploy de codigo: OK (versao=$INSTALLED_VERSION collector_sha256=$DEST_COLL
 [[ -f "$INSTALL_DIR/dashboard/static/cover.html" ]] || fail "Dashboard cover.html ausente apos deploy."
 [[ -f "$INSTALL_DIR/dashboard/static/unit.html" ]] || fail "Dashboard unit.html ausente apos deploy."
 [[ -f "$INSTALL_DIR/dashboard/static/consolidated.html" ]] || fail "Dashboard consolidated.html ausente apos deploy."
-log "Dashboard UI v0.9.3: OK (capa + unidade + consolidado)"
+log "Dashboard UI v0.9.4: OK (capa + unidade + consolidado protegido via endpoint dedicado)"
 
 # Instalar explicitamente os scripts operacionais. Isto evita que uma atualizacao
 # parcial deixe /opt/starlink-agent com os helpers de uma versao anterior.
@@ -179,6 +179,10 @@ HELPER_SCRIPTS=(
   bootstrap-dashboard-linux.sh
   sync-history-linux.sh
   audit-history-linux.sh
+  configure-caddy-linux.sh
+  diagnostico-caddy-linux.sh
+  export-caddy-root-ca-linux.sh
+  disable-caddy-linux.sh
 )
 for helper in "${HELPER_SCRIPTS[@]}"; do
   [[ -f "$SOURCE_DIR/$helper" ]] || fail "Script obrigatorio ausente no pacote: $helper"
@@ -340,6 +344,10 @@ PROXIMOS PASSOS:
    sudo $INSTALL_DIR/diagnostico-linux.sh
 8) Teste de relatorio com CSV local:
    sudo $INSTALL_DIR/test-report-linux.sh /caminho/arquivo.csv --period "Teste"
+9) Publicar em HTTPS :443 com Caddy:
+   sudo $INSTALL_DIR/configure-caddy-linux.sh
+10) Diagnostico Caddy:
+   sudo $INSTALL_DIR/diagnostico-caddy-linux.sh
 
 Para mudar o horario padrao de 06:00, edite /etc/systemd/system/starlink-agent.timer
 e execute: sudo systemctl daemon-reload && sudo systemctl restart starlink-agent.timer
