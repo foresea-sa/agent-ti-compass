@@ -1,0 +1,106 @@
+CHANGELOG
+=========
+
+v0.8
+----
+- Periodo Compass estruturado: period_start, period_end e period_days.
+- Deteccao do periodo pelo campo da pagina ou pelo nome do CSV.
+- Historico usa period_end como data efetiva; collected_at permanece como trilha de auditoria.
+- Fallback de previsao por MEDIA DO PERIODO COMPASS quando nao ha historico suficiente.
+- source_file e SHA256 do CSV armazenados para auditoria.
+- snapshot_key e indice unico para evitar insercao duplicada do mesmo snapshot.
+- Classificacao de atualidade dos dados e idade em dias.
+- Confianca da previsao BAIXA/MEDIA/ALTA.
+- importar_snapshot.py para bootstrap de CSVs historicos.
+- Dashboard mostra periodo, atualidade, idade e confianca.
+- Excel recebeu colunas de auditoria e qualidade dos dados.
+- PDF/e-mail identificados como v0.8.
+
+v0.7
+----
+- Dashboard web local lendo o mesmo SQLite do agente.
+- KPIs consolidados e ranking de utilizacao por sonda.
+- Historico visual de 7/30 dias com seletor de unidade.
+- Alertas de ESTOURADO, ESTOURO PREVISTO e RISCO ALTO.
+- Tabela operacional com GB/dia, tendencia, risco, data de 100%, projecao e Service Line.
+- Atualizacao automatica sem recarregar a pagina.
+- Implementacao sem dependencias web/CDN: HTTP server Python + HTML/CSS/SVG/JS local.
+- /api/dashboard e /health para integracao e monitoramento.
+- start_dashboard.ps1 e create_dashboard_task.ps1.
+- Dashboard limitado a localhost por padrao; aviso ao expor em interface de rede.
+- Relatorios PDF/Excel e e-mail identificados como v0.7.
+
+v0.6
+----
+- Historico diario real em SQLite usado para analise de tendencia.
+- Um unico snapshot por sonda/dia e considerado na velocidade, evitando peso duplicado quando o agente roda mais de uma vez.
+- Calculo de ritmo em GB/dia por regressao dos snapshots do ciclo atual.
+- Fallback automatico para media do ciclo quando ainda nao existem pontos historicos suficientes.
+- Deteccao de reinicio/queda do acumulado para evitar projecoes incorretas na virada de ciclo.
+- Tendencia: ACELERANDO, ESTAVEL, DESACELERANDO ou SEM HISTORICO.
+- Calculo de dias ate 100% e data prevista para atingir a franquia.
+- Projecao de consumo e overage no fim do ciclo.
+- Risco projetado: CONTROLADO, RISCO MODERADO, RISCO ALTO, ESTOURO PREVISTO ou ESTOURADO.
+- PDF executivo ampliado para tres paginas: situacao atual, tendencia/previsao e detalhamento tecnico.
+- Excel com novas abas Historico e Tendencia, grafico historico e previsao por unidade.
+- E-mail HTML inclui ritmo, tendencia, risco e overage projetado.
+- Parametros de historico e ciclo configuraveis no config.json.
+
+v0.5
+----
+- Redesign completo do PDF executivo.
+- PDF consolidado em duas paginas para o conjunto atual de unidades.
+- KPIs: consumo, franquia, overage, criticas/emergencia e unidades monitoradas.
+- Grafico de ranking de utilizacao.
+- Status visual por unidade.
+- Recomendacao automatica de acao.
+- Pagina de detalhamento tecnico.
+- Excel com Painel Executivo, Resumo Executivo, Dados Coletados e Parametros.
+- Dois graficos no Excel.
+- Formulas para consumo, saldo, overage, uso, status e acao recomendada.
+- E-mail HTML executivo.
+- Suporte a assets/logo.png.
+- gerar_relatorio_teste.py para teste offline.
+
+v0.4
+----
+- Parser validado com CSV real do Compass.
+- Schema Speedcast confirmado.
+- Tratamento de linhas inativas/sem plano.
+
+v0.3
+----
+- Login automatico com usuario + senha usando Windows Credential Manager.
+
+v0.2
+----
+- Coleta via exportacao CSV da tela Starlink Fleet Usage.
+
+v0.1
+----
+- Estrutura inicial do agente.
+
+v0.8.1 Linux Adaptive
+- Instalador detecta /etc/os-release, VERSION_ID, arquitetura e versao real do Python.
+- Ubuntu 20.04 e Debian 11 usam perfil legacy (Playwright 1.48 / pandas 2.0.3) compativel com Python 3.8.
+- Ubuntu 22.04/24.04 e Debian 12 usam perfil modern quando Python >=3.9.
+- Fallback seguro para outras versoes Ubuntu/Debian com selecao por versao do Python.
+- Verificacao de Python minimo 3.8 antes da instalacao.
+- Virtualenv e recriado automaticamente quando usa versao de Python diferente da atual.
+- Instalacao valida imports Python e inicializacao real do Chromium headless.
+- Perfil detectado salvo em runtime-profile.env para auditoria/suporte.
+- Novo diagnostico-linux.sh para OS, Python, pacotes, Chromium e systemd.
+
+v0.8.4
+- Corrigida deteccao de autenticacao em fluxo de login de duas etapas do Compass.
+- Teste de login limpa sessao salva automaticamente.
+- Diagnostico enriquecido com screenshot, HTML e JSON da pagina.
+- Readiness do relatorio aceita titulo ou botao CSV.
+
+
+v0.8.6
+- Adicionada estabilizacao pos-login antes de acessar /fleet/starlinkusage.
+- O Compass aguarda por padrao 70 segundos apos autenticacao confirmada, configuravel.
+- O menu superior autenticado nao e mais tratado como sinal de que a SPA terminou de carregar.
+- Timeout especifico da pagina Starlink Fleet Usage aumentado para 120 segundos.
+- Novos parametros: post_login_stabilization_seconds, post_login_max_wait_seconds e usage_page_timeout_ms.

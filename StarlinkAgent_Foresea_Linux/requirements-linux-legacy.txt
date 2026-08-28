@@ -1,0 +1,8 @@
+# Compatibilidade: Ubuntu 20.04 / Debian 11 / Python 3.8
+# Playwright 1.48 e pandas 2.0.3 sao as ultimas linhas usadas pelo agente para Python 3.8.
+playwright==1.48.0
+pandas==2.0.3
+openpyxl==3.1.5
+reportlab==4.4.3
+requests==2.32.3
+msal==1.33.0
