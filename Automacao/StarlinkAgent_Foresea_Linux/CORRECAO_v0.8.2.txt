@@ -1,0 +1,12 @@
+FORESEA STARLINK AGENT v0.8.2 - CORRECAO LINUX
+
+Correcoes:
+- /etc/starlink-agent agora usa 0750 root:starlinkagent.
+- secrets.env usa 0640 root:starlinkagent.
+- Novo configure-credentials.sh usa explicitamente o Python do virtualenv.
+- Novo validate-secrets-linux.sh valida acesso sem revelar senhas.
+
+Configuracao:
+  sudo /opt/starlink-agent/configure-credentials.sh
+  sudo /opt/starlink-agent/validate-secrets-linux.sh
+  sudo /opt/starlink-agent/test-login-linux.sh
