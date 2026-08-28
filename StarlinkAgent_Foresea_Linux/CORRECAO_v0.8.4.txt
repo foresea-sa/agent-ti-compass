@@ -1,8 +1,0 @@
-FORESEA STARLINK AGENT v0.8.4 - CORRECAO DE LOGIN COMPASS
-
-- O teste de login agora remove a sessao salva antes de testar, evitando storage_state obsoleto.
-- A deteccao de sessao expirada reconhece formularios de login mesmo quando a URL nao contem /login.
-- O fluxo em duas etapas (email -> senha) nao considera mais uma simples mudanca de URL como autenticacao concluida.
-- A autenticacao so e confirmada quando elementos do shell do Compass aparecem.
-- A pagina Starlink Fleet Usage e considerada pronta pelo titulo ou pelo botao CSV.
-- Em falhas sao salvos PNG + HTML + JSON em logs/debug, com URL, titulo e trecho textual da pagina.
