@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import time
 import unicodedata
 from datetime import datetime
@@ -19,6 +20,9 @@ BASE = Path(__file__).resolve().parents[1]
 DATA_DIR = BASE / "data"
 RAW_DIR = DATA_DIR / "raw"
 DEBUG_DIR = BASE / "logs" / "debug"
+VIDEO_DIR = DEBUG_DIR / "videos"
+VIDEO_RAW_DIR = VIDEO_DIR / "raw"
+AGENT_BUILD = "0.8.8"
 
 
 def _norm(value: object) -> str:
@@ -82,6 +86,106 @@ class CompassCollector:
         DATA_DIR.mkdir(exist_ok=True)
         RAW_DIR.mkdir(parents=True, exist_ok=True)
         DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+        VIDEO_RAW_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _video_enabled(self) -> bool:
+        env = os.environ.get("STARLINK_RECORD_VIDEO", "").strip().lower()
+        if env in {"1", "true", "yes", "sim", "on"}:
+            return True
+        if env in {"0", "false", "no", "nao", "off"}:
+            return False
+        return bool(self.config.get("compass", {}).get("record_activity_video", False))
+
+    def _video_context_args(self) -> dict:
+        if not self._video_enabled():
+            return {}
+        cfg = self.config.get("compass", {})
+        width = max(320, int(cfg.get("video_width", 960)))
+        height = max(240, int(cfg.get("video_height", 540)))
+        VIDEO_RAW_DIR.mkdir(parents=True, exist_ok=True)
+        self.logger.info("Gravacao de atividade habilitada: %sx%s (MP4 sera gerado ao final).", width, height)
+        return {
+            "record_video_dir": str(VIDEO_RAW_DIR),
+            "record_video_size": {"width": width, "height": height},
+            "viewport": {"width": width, "height": height},
+        }
+
+    def _finalize_browser_run(self, context, page, browser, status: str) -> str | None:
+        """Fecha o contexto e converte a gravacao Playwright (WebM) para MP4 compacto.
+
+        O Playwright finaliza o arquivo de video apenas ao fechar o BrowserContext.
+        Por isso esta rotina deve ser usada em vez de browser.close() durante a coleta.
+        """
+        video = None
+        if self._video_enabled():
+            try:
+                video = page.video
+            except Exception:
+                video = None
+
+        try:
+            context.close()
+        except Exception as exc:
+            self.logger.warning("Falha ao fechar contexto do navegador: %s", exc)
+        try:
+            browser.close()
+        except Exception:
+            pass
+
+        if video is None:
+            return None
+
+        try:
+            raw_path = Path(video.path())
+        except Exception as exc:
+            self.logger.warning("Nao foi possivel localizar o video bruto do Playwright: %s", exc)
+            return None
+
+        if not raw_path.exists():
+            self.logger.warning("Video bruto informado pelo Playwright nao existe: %s", raw_path)
+            return None
+
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_status = re.sub(r"[^A-Za-z0-9_-]+", "_", status or "run")
+        mp4_path = VIDEO_DIR / f"{stamp}_compass_{safe_status}.mp4"
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            fallback = VIDEO_DIR / f"{stamp}_compass_{safe_status}.webm"
+            try:
+                shutil.move(str(raw_path), str(fallback))
+            except Exception:
+                fallback = raw_path
+            self.logger.warning("ffmpeg nao encontrado; video mantido em WebM: %s", fallback)
+            return str(fallback)
+
+        cfg = self.config.get("compass", {})
+        fps = max(5, int(cfg.get("video_fps", 10)))
+        crf = min(38, max(18, int(cfg.get("video_crf", 30))))
+        width = max(320, int(cfg.get("video_width", 960)))
+        vf = f"fps={fps},scale={width}:-2"
+        cmd = [
+            ffmpeg, "-y", "-loglevel", "error", "-i", str(raw_path),
+            "-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
+            "-crf", str(crf), "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+            str(mp4_path),
+        ]
+        try:
+            subprocess.run(cmd, check=True, timeout=180)
+            try:
+                raw_path.unlink()
+            except Exception:
+                pass
+            self.logger.info("Mini MP4 da atividade salvo em: %s", mp4_path)
+            return str(mp4_path)
+        except Exception as exc:
+            fallback = VIDEO_DIR / f"{stamp}_compass_{safe_status}.webm"
+            try:
+                shutil.move(str(raw_path), str(fallback))
+            except Exception:
+                fallback = raw_path
+            self.logger.warning("Falha ao converter video para MP4 (%s). WebM preservado em: %s", exc, fallback)
+            return str(fallback)
 
     def _username(self) -> str:
         username = get_secret("compass_username")
@@ -822,6 +926,7 @@ class CompassCollector:
 
     def collect(self):
         cfg = self.config["compass"]
+        self.logger.info("Compass Collector build %s", AGENT_BUILD)
         state_path = self._state_path()
         state_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -836,6 +941,7 @@ class CompassCollector:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=cfg.get("headless", True))
             context_args = {"accept_downloads": True}
+            context_args.update(self._video_context_args())
             if cfg.get("use_saved_session", True) and state_path.exists() and not reset_session:
                 context_args["storage_state"] = str(state_path)
             context = browser.new_context(**context_args)
@@ -855,7 +961,7 @@ class CompassCollector:
                 if self._session_expired(page):
                     if not cfg.get("auto_login", True):
                         shot = self._failure_screenshot(page, "session_expired")
-                        browser.close()
+                        self._finalize_browser_run(context, page, browser, "session_expired")
                         raise RuntimeError(
                             "A sessao do Compass expirou e auto_login esta desabilitado. "
                             f"Screenshot salvo em {shot}."
@@ -866,13 +972,13 @@ class CompassCollector:
                         page.goto(usage_url, wait_until="domcontentloaded")
                     except Exception as exc:
                         shot = self._failure_screenshot(page, "automatic_login_failed")
-                        browser.close()
+                        self._finalize_browser_run(context, page, browser, "login_failed")
                         raise RuntimeError(f"Falha no login automatico do Compass. Screenshot: {shot}. Erro: {exc}")
             else:
                 # Primeira execucao/teste de login: NAO toque em /fleet/starlinkusage
                 # antes de autenticar e terminar a janela de estabilizacao do portal.
                 if not cfg.get("auto_login", True):
-                    browser.close()
+                    self._finalize_browser_run(context, page, browser, "no_session")
                     raise RuntimeError(
                         "Nao existe sessao salva e auto_login esta desabilitado. "
                         "Habilite auto_login ou forneca um storage_state valido."
@@ -884,7 +990,7 @@ class CompassCollector:
                     page.goto(usage_url, wait_until="domcontentloaded")
                 except Exception as exc:
                     shot = self._failure_screenshot(page, "automatic_login_failed")
-                    browser.close()
+                    self._finalize_browser_run(context, page, browser, "login_failed")
                     raise RuntimeError(f"Falha no login automatico do Compass. Screenshot: {shot}. Erro: {exc}")
 
             # Aguarde o relatorio real ficar pronto. Nao use o texto do menu como
@@ -899,25 +1005,29 @@ class CompassCollector:
                     csv_button = self._wait_for_usage_page_ready(page)
                 except Exception as exc:
                     diag = self._diagnostic_snapshot(page, "late_login_failed")
-                    browser.close()
+                    self._finalize_browser_run(context, page, browser, "late_login_failed")
                     raise RuntimeError(
                         f"Falha de autenticacao durante abertura do relatorio. Diagnostico: {diag}. Erro: {exc}"
                     )
 
             if csv_button is None:
                 diag = self._diagnostic_snapshot(page, "usage_page_not_ready")
-                browser.close()
+                self._finalize_browser_run(context, page, browser, "usage_not_ready")
                 raise RuntimeError(
                     "Pagina Starlink Fleet Usage nao ficou pronta dentro do timeout. "
                     f"URL final: {diag.get('url')}. Titulo: {diag.get('title')}. "
                     f"Diagnostico: {diag.get('meta')} | Screenshot: {diag.get('screenshot')}"
                 )
 
-            period = self._period_label(page)
-            csv_path = self._download_csv(page, csv_button=csv_button)
-            # Mantem cookies/tokens para acelerar a proxima execucao. Se expirarem, o agente reloga sozinho.
-            context.storage_state(path=str(state_path))
-            browser.close()
+            try:
+                period = self._period_label(page)
+                csv_path = self._download_csv(page, csv_button=csv_button)
+                # Mantem cookies/tokens para acelerar a proxima execucao. Se expirarem, o agente reloga sozinho.
+                context.storage_state(path=str(state_path))
+            except Exception:
+                self._finalize_browser_run(context, page, browser, "download_failed")
+                raise
+            self._finalize_browser_run(context, page, browser, "success")
 
         rows = self._parse_csv(csv_path, period)
         self.logger.info("Coleta Compass concluida: %d unidade(s)", len(rows))

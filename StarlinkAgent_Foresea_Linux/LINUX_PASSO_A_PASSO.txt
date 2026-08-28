@@ -91,3 +91,9 @@ O instalador detecta Ubuntu/Debian, versao do OS e Python. Em Ubuntu 20.04/Pytho
 Para conferir o perfil aplicado:
   sudo /opt/starlink-agent/diagnostico-linux.sh
   cat /opt/starlink-agent/runtime-profile.env
+
+DIAGNOSTICO EM VIDEO (v0.8.8)
+- sudo /opt/starlink-agent/test-login-linux.sh grava automaticamente um MP4 compacto.
+- Caminho: /opt/starlink-agent/logs/debug/videos/
+- Ultimo video: sudo /opt/starlink-agent/last-video-linux.sh
+- Para gravar tambem numa execucao manual: STARLINK_RECORD_VIDEO=1.

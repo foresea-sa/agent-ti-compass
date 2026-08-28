@@ -44,3 +44,7 @@ Arquivos importantes
 /etc/systemd/system/starlink-dashboard.service  dashboard
 
 Documentacao completa: LINUX_PASSO_A_PASSO.txt
+
+v0.8.8 Linux - video de diagnostico
+O teste de login grava a navegacao headless e gera um MP4 compacto em logs/debug/videos.
+Use: sudo /opt/starlink-agent/last-video-linux.sh

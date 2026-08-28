@@ -1,0 +1,10 @@
+Foresea Starlink Agent v0.8.8 - Linux Adaptive
+
+Correcoes principais:
+- Instalador sincroniza explicitamente o codigo da versao nova para /opt/starlink-agent.
+- Valida VERSION.txt e SHA-256 do collectors/compass.py entre origem e destino.
+- test-login-linux.sh mostra a versao realmente implantada antes de executar.
+- Espera real pelo botao CSV continua ativa antes do download.
+- Teste de login grava atividade do navegador e gera MP4 compacto via ffmpeg.
+- Videos sao salvos em logs/debug/videos.
+- O video de teste pode ser habilitado com STARLINK_RECORD_VIDEO=1.

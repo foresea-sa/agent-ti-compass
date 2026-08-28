@@ -15,7 +15,12 @@
     "post_login_max_wait_seconds": 120,
     "usage_page_timeout_ms": 120000,
     "usage_poll_interval_ms": 1000,
-    "download_timeout_ms": 90000
+    "download_timeout_ms": 90000,
+    "record_activity_video": false,
+    "video_width": 960,
+    "video_height": 540,
+    "video_fps": 10,
+    "video_crf": 30
   },
   "collection": {
     "mode": "compass",

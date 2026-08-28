@@ -12,6 +12,8 @@ SERVICE_USER="${SERVICE_USER:-starlinkagent}"
 SECRETS_DIR="/etc/starlink-agent"
 BROWSER_DIR="$INSTALL_DIR/.playwright"
 PROFILE_FILE="$INSTALL_DIR/runtime-profile.env"
+PACKAGE_VERSION="$(tr -d "\r\n" < "$SOURCE_DIR/VERSION.txt" 2>/dev/null || true)"
+[[ -n "$PACKAGE_VERSION" ]] || { echo "ERRO: VERSION.txt ausente ou vazio." >&2; exit 1; }
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'ERRO: %s\n' "$*" >&2; exit 1; }
@@ -39,7 +41,7 @@ esac
 
 command -v apt-get >/dev/null 2>&1 || fail "apt-get nao encontrado."
 
-log "=== Foresea Starlink Agent v0.8.6 - Instalacao Linux adaptativa ==="
+log "=== Foresea Starlink Agent v${PACKAGE_VERSION} - Instalacao Linux adaptativa ==="
 log "Origem: $SOURCE_DIR"
 log "Destino: $INSTALL_DIR"
 log "Usuario de servico: $SERVICE_USER"
@@ -51,7 +53,7 @@ log "Arquitetura: $ARCH"
 # -----------------------------------------------------------------------------
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y python3 python3-venv python3-pip ca-certificates curl
+apt-get install -y python3 python3-venv python3-pip ca-certificates curl ffmpeg
 
 PYTHON_BIN="$(command -v python3)"
 PY_VERSION="$($PYTHON_BIN -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
@@ -122,11 +124,37 @@ if ! id "$SERVICE_USER" >/dev/null 2>&1; then
   useradd --system --home "$INSTALL_DIR" --shell /usr/sbin/nologin "$SERVICE_USER"
 fi
 
-if [[ "$(readlink -f "$SOURCE_DIR")" != "$(readlink -f "$INSTALL_DIR")" ]]; then
-  cp -a "$SOURCE_DIR/." "$INSTALL_DIR/"
+# Sincronize explicitamente o CODIGO da distribuicao. Diretorios de runtime
+# (data/database/logs/output/assets/config.json/.venv/.playwright) sao preservados.
+# Isto evita executar collectors/compass.py de uma versao anterior apos upgrade.
+CODE_DIRS=(analytics collectors dashboard linux mail reports utils)
+for d in "${CODE_DIRS[@]}"; do
+  [[ -d "$SOURCE_DIR/$d" ]] || fail "Diretorio de codigo ausente no pacote: $d"
+  rm -rf "$INSTALL_DIR/$d"
+  cp -a "$SOURCE_DIR/$d" "$INSTALL_DIR/$d"
+done
+
+# Arquivos de codigo/configuracao/documentacao na raiz sao atualizados sempre.
+for src in "$SOURCE_DIR"/*.py "$SOURCE_DIR"/*.txt "$SOURCE_DIR"/requirements* "$SOURCE_DIR"/config.example.json; do
+  [[ -e "$src" ]] || continue
+  cp -f "$src" "$INSTALL_DIR/"
+done
+
+# Assets do pacote sao copiados apenas quando ainda nao existem, preservando logo customizado.
+mkdir -p "$INSTALL_DIR/assets"
+if [[ -d "$SOURCE_DIR/assets" ]]; then
+  cp -an "$SOURCE_DIR/assets/." "$INSTALL_DIR/assets/" 2>/dev/null || true
 fi
-mkdir -p "$INSTALL_DIR/data/raw" "$INSTALL_DIR/database" "$INSTALL_DIR/logs/debug" "$INSTALL_DIR/output" "$INSTALL_DIR/assets" "$BROWSER_DIR"
+mkdir -p "$INSTALL_DIR/data/raw" "$INSTALL_DIR/database" "$INSTALL_DIR/logs/debug/videos/raw" "$INSTALL_DIR/output" "$BROWSER_DIR"
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
+
+# Verificacao de deploy: a versao e o coletor em /opt DEVEM ser identicos ao pacote.
+INSTALLED_VERSION="$(tr -d "\r\n" < "$INSTALL_DIR/VERSION.txt" 2>/dev/null || true)"
+[[ "$INSTALLED_VERSION" == "$PACKAGE_VERSION" ]] || fail "Versao implantada incorreta: pacote=$PACKAGE_VERSION destino=${INSTALLED_VERSION:-ausente}"
+SOURCE_COLLECTOR_SHA="$(sha256sum "$SOURCE_DIR/collectors/compass.py" | awk '{print $1}')"
+DEST_COLLECTOR_SHA="$(sha256sum "$INSTALL_DIR/collectors/compass.py" | awk '{print $1}')"
+[[ "$SOURCE_COLLECTOR_SHA" == "$DEST_COLLECTOR_SHA" ]] || fail "collectors/compass.py do destino nao corresponde ao pacote."
+log "Deploy de codigo: OK (versao=$INSTALLED_VERSION collector_sha256=$DEST_COLLECTOR_SHA)"
 
 # Instalar explicitamente os scripts operacionais. Isto evita que uma atualizacao
 # parcial deixe /opt/starlink-agent com os helpers de uma versao anterior.
@@ -139,6 +167,7 @@ HELPER_SCRIPTS=(
   healthcheck-linux.sh
   run-agent-linux.sh
   run-dashboard-linux.sh
+  last-video-linux.sh
 )
 for helper in "${HELPER_SCRIPTS[@]}"; do
   [[ -f "$SOURCE_DIR/$helper" ]] || fail "Script obrigatorio ausente no pacote: $helper"
@@ -151,7 +180,7 @@ install -m 0644 -o root -g root "$SOURCE_DIR/credential_setup.py" "$INSTALL_DIR/
 
 # Guardar perfil efetivamente usado para suporte/diagnostico.
 cat > "$PROFILE_FILE" <<PROFILE
-STARLINK_AGENT_VERSION=0.8.6
+STARLINK_AGENT_VERSION=$PACKAGE_VERSION
 OS_ID=$OS_ID
 OS_VERSION=$OS_VERSION
 OS_NAME=$(printf '%q' "$OS_NAME")
@@ -256,6 +285,8 @@ AMBIENTE DETECTADO:
   Python:      $PY_FULL
   Perfil:      $PROFILE
   Requisitos:  $REQ_FILE
+  Deploy:       $INSTALLED_VERSION
+  Video debug:  ffmpeg $(ffmpeg -version 2>/dev/null | head -n1 | awk '{print $3}')
 
 O perfil tambem foi salvo em:
   $PROFILE_FILE
