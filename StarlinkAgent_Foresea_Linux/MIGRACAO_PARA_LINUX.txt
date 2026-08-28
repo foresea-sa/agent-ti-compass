@@ -1,0 +1,18 @@
+MIGRACAO DE WINDOWS/v0.7 PARA LINUX v0.8
+========================================
+1. Instale a versao Linux normalmente.
+2. Pare os servicos Linux:
+   sudo systemctl stop starlink-agent.timer starlink-dashboard.service
+3. Copie o banco antigo para:
+   /opt/starlink-agent/database/starlink.db
+4. Copie/adapte config.json para:
+   /opt/starlink-agent/config.json
+5. NAO copie credenciais do Windows Credential Manager.
+6. Execute novamente:
+   sudo /opt/starlink-agent/credential_setup.py
+7. Ajuste proprietario:
+   sudo chown -R starlinkagent:starlinkagent /opt/starlink-agent/database /opt/starlink-agent/data /opt/starlink-agent/logs /opt/starlink-agent/output
+8. Habilite os servicos:
+   sudo /opt/starlink-agent/enable-services-linux.sh
+
+O banco v0.7 e migrado automaticamente pelo init_db() quando a v0.8 iniciar.

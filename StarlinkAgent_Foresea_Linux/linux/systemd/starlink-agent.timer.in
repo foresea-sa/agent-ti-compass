@@ -1,0 +1,11 @@
+[Unit]
+Description=Executa Foresea Starlink Agent diariamente as 06:00
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+Persistent=true
+AccuracySec=1min
+Unit=starlink-agent.service
+
+[Install]
+WantedBy=timers.target
