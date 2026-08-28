@@ -159,6 +159,63 @@ class CompassCollector:
                 continue
         return hits >= 1 and not self._is_login_like(page)
 
+    def _wait_post_login_stabilization(self, page) -> None:
+        """Aguarda o shell do Compass terminar a inicializacao apos autenticar.
+
+        O portal pode exibir o menu superior antes de terminar o bootstrap da SPA.
+        Navegar para /fleet/starlinkusage durante esse intervalo pode deixar a pagina
+        presa no spinner. Por isso existe uma janela minima de estabilizacao apos o
+        login confirmado.
+        """
+        cfg = self.config["compass"]
+        min_seconds = max(0, int(cfg.get("post_login_stabilization_seconds", 70)))
+        max_seconds = max(min_seconds, int(cfg.get("post_login_max_wait_seconds", 120)))
+
+        self.logger.info(
+            "Login aceito. Aguardando estabilizacao completa do portal Compass por pelo menos %ss antes de abrir relatórios.",
+            min_seconds,
+        )
+
+        started = time.time()
+        next_log = started + 15
+        while True:
+            elapsed = time.time() - started
+
+            if self._is_login_like(page):
+                diag = self._diagnostic_snapshot(page, "session_returned_to_login_during_stabilization")
+                raise RuntimeError(
+                    f"A sessao retornou para o fluxo de login durante a estabilizacao. Diagnostico: {diag}"
+                )
+
+            # Aguardar sempre a janela minima. Os menus do Compass aparecem antes
+            # do fim do bootstrap, portanto eles nao sao suficientes para liberar a navegacao.
+            if elapsed >= min_seconds:
+                break
+
+            if time.time() >= next_log:
+                remaining = max(0, int(min_seconds - elapsed))
+                self.logger.info("Compass ainda em estabilizacao pos-login (%ss restantes aprox.).", remaining)
+                next_log = time.time() + 15
+
+            time.sleep(1)
+
+        # Depois da janela minima, aguarde brevemente um estado de carga mais calmo.
+        # Algumas SPAs mantem conexoes abertas, portanto networkidle e apenas best-effort.
+        remaining_budget_ms = max(1000, int((max_seconds - (time.time() - started)) * 1000))
+        try:
+            page.wait_for_load_state("networkidle", timeout=min(15000, remaining_budget_ms))
+        except Exception:
+            pass
+
+        if not self._is_authenticated(page):
+            # O shell pode momentaneamente nao expor os mesmos marcadores, mas nao
+            # devemos seguir se voltamos ao login.
+            if self._is_login_like(page):
+                diag = self._diagnostic_snapshot(page, "portal_not_authenticated_after_stabilization")
+                raise RuntimeError(f"Portal nao permaneceu autenticado apos estabilizacao. Diagnostico: {diag}")
+
+        self.logger.info("Portal Compass estabilizado. Navegacao para Starlink Fleet Usage liberada.")
+
     def _login(self, page) -> None:
         cfg = self.config["compass"]
         login_url = cfg.get("login_url", "https://compass.speedcast.com/login")
@@ -207,6 +264,7 @@ class CompassCollector:
                 break
             if self._is_authenticated(page):
                 self.logger.info("Login concluido sem solicitar senha nesta execucao.")
+                self._wait_post_login_stabilization(page)
                 return
             time.sleep(0.5)
 
@@ -229,6 +287,7 @@ class CompassCollector:
         while time.time() < deadline:
             if self._is_authenticated(page):
                 self.logger.info("Login automatico no Compass concluido.")
+                self._wait_post_login_stabilization(page)
                 return
             # Se a senha continuar visivel, procure mensagem de erro cedo.
             try:
@@ -591,19 +650,45 @@ class CompassCollector:
             page = context.new_page()
             page.set_default_timeout(cfg.get("timeout_ms", 60000))
             usage_url = cfg.get("usage_url", "https://compass.speedcast.com/fleet/starlinkusage")
-            self.logger.info("Abrindo Starlink Fleet Usage: %s", usage_url)
-            page.goto(usage_url, wait_until="domcontentloaded")
+            has_saved_session = bool(
+                cfg.get("use_saved_session", True) and state_path.exists() and not reset_session
+            )
 
-            if self._session_expired(page):
+            if has_saved_session:
+                # Com uma sessao persistida, podemos tentar o relatorio diretamente.
+                # Se ela tiver expirado, o Compass redireciona para login e o fluxo
+                # abaixo autentica e aguarda a estabilizacao antes de tentar novamente.
+                self.logger.info("Verificando sessao salva antes de abrir Starlink Fleet Usage.")
+                page.goto(usage_url, wait_until="domcontentloaded")
+                if self._session_expired(page):
+                    if not cfg.get("auto_login", True):
+                        shot = self._failure_screenshot(page, "session_expired")
+                        browser.close()
+                        raise RuntimeError(
+                            "A sessao do Compass expirou e auto_login esta desabilitado. "
+                            f"Screenshot salvo em {shot}."
+                        )
+                    try:
+                        self._login(page)
+                        self.logger.info("Abrindo Starlink Fleet Usage apos estabilizacao: %s", usage_url)
+                        page.goto(usage_url, wait_until="domcontentloaded")
+                    except Exception as exc:
+                        shot = self._failure_screenshot(page, "automatic_login_failed")
+                        browser.close()
+                        raise RuntimeError(f"Falha no login automatico do Compass. Screenshot: {shot}. Erro: {exc}")
+            else:
+                # Primeira execucao/teste de login: NAO toque em /fleet/starlinkusage
+                # antes de autenticar e terminar a janela de estabilizacao do portal.
                 if not cfg.get("auto_login", True):
-                    shot = self._failure_screenshot(page, "session_expired")
                     browser.close()
                     raise RuntimeError(
-                        "A sessao do Compass expirou e auto_login esta desabilitado. "
-                        f"Screenshot salvo em {shot}."
+                        "Nao existe sessao salva e auto_login esta desabilitado. "
+                        "Habilite auto_login ou forneca um storage_state valido."
                     )
                 try:
+                    self.logger.info("Sem sessao salva. Iniciando pelo login do Compass antes de acessar o relatorio.")
                     self._login(page)
+                    self.logger.info("Abrindo Starlink Fleet Usage somente apos estabilizacao: %s", usage_url)
                     page.goto(usage_url, wait_until="domcontentloaded")
                 except Exception as exc:
                     shot = self._failure_screenshot(page, "automatic_login_failed")
@@ -612,13 +697,15 @@ class CompassCollector:
 
             # A pagina pode renderizar o titulo de formas diferentes. Considere pronta
             # quando o titulo OU o botao CSV estiver visivel.
-            deadline = time.time() + (int(cfg.get("timeout_ms", 60000)) / 1000.0)
+            usage_timeout_ms = int(cfg.get("usage_page_timeout_ms", 120000))
+            deadline = time.time() + (usage_timeout_ms / 1000.0)
             ready = False
             while time.time() < deadline:
                 if self._session_expired(page):
                     # Redirecionamento tardio para login: tente autenticar uma vez.
                     try:
                         self._login(page)
+                        self.logger.info("Reabrindo Starlink Fleet Usage apos estabilizacao: %s", usage_url)
                         page.goto(usage_url, wait_until="domcontentloaded")
                     except Exception as exc:
                         diag = self._diagnostic_snapshot(page, "late_login_failed")

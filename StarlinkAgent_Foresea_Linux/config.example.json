@@ -8,7 +8,10 @@
     "timeout_ms": 60000,
     "auto_login": true,
     "use_saved_session": true,
-    "login_wait_seconds": 60
+    "login_wait_seconds": 90,
+    "post_login_stabilization_seconds": 70,
+    "post_login_max_wait_seconds": 120,
+    "usage_page_timeout_ms": 120000
   },
   "collection": {
     "mode": "compass",

@@ -39,7 +39,7 @@ esac
 
 command -v apt-get >/dev/null 2>&1 || fail "apt-get nao encontrado."
 
-log "=== Foresea Starlink Agent v0.8.4 - Instalacao Linux adaptativa ==="
+log "=== Foresea Starlink Agent v0.8.5 - Instalacao Linux adaptativa ==="
 log "Origem: $SOURCE_DIR"
 log "Destino: $INSTALL_DIR"
 log "Usuario de servico: $SERVICE_USER"
@@ -151,7 +151,7 @@ install -m 0644 -o root -g root "$SOURCE_DIR/credential_setup.py" "$INSTALL_DIR/
 
 # Guardar perfil efetivamente usado para suporte/diagnostico.
 cat > "$PROFILE_FILE" <<PROFILE
-STARLINK_AGENT_VERSION=0.8.4
+STARLINK_AGENT_VERSION=0.8.5
 OS_ID=$OS_ID
 OS_VERSION=$OS_VERSION
 OS_NAME=$(printf '%q' "$OS_NAME")
