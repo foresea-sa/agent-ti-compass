@@ -156,3 +156,9 @@ v0.9.4
 - Capa e dashboards individuais continuam sem depender da API protegida.
 - Deteccao automatica de Caddy <2.8 (basicauth) e >=2.8 (basic_auth).
 - Diagnostico Caddy, exportacao segura da Root CA publica e desativacao/rollback operacional.
+
+v0.9.5
+- configure-caddy-linux.sh detecta ausencia do pacote Caddy no APT.
+- adiciona automaticamente o repositorio oficial Caddy stable/Cloudsmith em Ubuntu/Debian.
+- instala chave GPG com keyring dedicado e lista de repositorio oficial.
+- mensagens especificas para bloqueio de proxy/firewall corporativo ao Cloudsmith.
