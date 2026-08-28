@@ -1,3 +1,14 @@
+v0.9.2
+- Corrige a semantica dos CSVs Compass: cada exportacao representa consumo do intervalo selecionado.
+- CSV de um dia passa a ser tratado como consumo diario real, nao snapshot acumulado.
+- CSV multi-dia nao entra mais como ponto diario no grafico.
+- Consumo do ciclo e reconstruido pela soma diaria; intervalo ciclo-ate-data e usado como total autoritativo quando disponivel.
+- GB/dia passa a ser media dos dias reais (janela padrao de 7 dias).
+- Tendencia compara medias diarias recentes, eliminando deltas artificiais.
+- Grafico do dashboard reconstrui o percentual acumulado do ciclo dia a dia.
+- Intervalos sobrepostos podem inferir um unico dia ausente quando a decomposicao e inequívoca.
+- Dashboard e relatorios passam a usar a mesma visao de ciclo corrigida.
+
 v0.9.1
 - Corrige GB/dia: period_days do CSV nao e mais usado como divisor do consumo acumulado.
 - Dashboard recalcula analytics ao vivo usando historico real.

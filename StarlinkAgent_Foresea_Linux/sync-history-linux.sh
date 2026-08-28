@@ -15,7 +15,7 @@ echo "Sincronizando todos os CSVs de data/raw com o SQLite..."
 runuser -u "$SERVICE_USER" -- "$INSTALL_DIR/.venv/bin/python" "$INSTALL_DIR/bootstrap_dashboard.py"
 
 echo
-echo "Reiniciando dashboard para aplicar analytics v0.9.1..."
+echo "Reiniciando dashboard para aplicar analytics v0.9.2..."
 systemctl restart starlink-dashboard.service 2>/dev/null || true
 
 echo "Concluido. Atualize o navegador com Ctrl+F5."

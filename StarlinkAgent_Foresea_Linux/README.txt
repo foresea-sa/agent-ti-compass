@@ -1,5 +1,5 @@
-FORESEA STARLINK CONSUMPTION AGENT v0.9.3.1 - LINUX
-================================================
+FORESEA STARLINK CONSUMPTION AGENT v0.9.2 - LINUX
+=================================================
 
 Objetivo
 --------
@@ -49,9 +49,9 @@ v0.9.0 Linux - video de diagnostico
 O teste de login grava a navegacao headless e gera um MP4 compacto em logs/debug/videos.
 Use: sudo /opt/starlink-agent/last-video-linux.sh
 
-v0.9.1 - Correcao de GB/dia
+v0.9.2 - Correcao de intervalos e analytics
 ----------------------------
-O ritmo de consumo nao usa mais o intervalo do nome do CSV como divisor do acumulado.
+CSVs de um dia sao consumo diario; CSVs multi-dia sao agregados do intervalo. O dashboard reconstrui o acumulado do ciclo e calcula GB/dia pelos arquivos diarios reais.
 Para sincronizar todos os CSVs existentes em data/raw e atualizar o dashboard:
   sudo /opt/starlink-agent/sync-history-linux.sh
-Detalhes: CORRECAO_v0.9.1_GB_DIA.txt
+Detalhes: CORRECAO_v0.9.2_INTERVALOS.txt

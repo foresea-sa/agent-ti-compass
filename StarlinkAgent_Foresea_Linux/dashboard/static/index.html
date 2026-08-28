@@ -36,7 +36,7 @@
   <section class="panel alerts"><div class="panel-head"><h2>Alertas e previsão de franquia</h2><span class="subtitle">Prioriza estouro atual, previsto e risco alto</span></div><div id="alerts"></div></section>
 
   <section class="panel table-panel"><div class="panel-head"><h2>Visão consolidada por unidade</h2><span id="generatedAt" class="subtitle"></span></div><table class="table"><thead><tr><th>Unidade</th><th>Periodo</th><th>Consumo</th><th>Franquia</th><th>Uso</th><th>Status</th><th>GB/dia</th><th>Tendência</th><th>Risco</th><th>Confianca</th><th>Data 100%</th><th>Fim ciclo</th><th>Overage proj.</th><th>Dados</th><th>Service Line</th></tr></thead><tbody id="unitTable"></tbody></table></section>
-  <div class="footer"><span><span class="dot"></span>Dashboard local v0.9.1</span><span id="autoRefresh">Atualização automática</span></div>
+  <div class="footer"><span><span class="dot"></span>Dashboard local v0.9.2</span><span id="autoRefresh">Atualização automática</span></div>
 </div>
 <script>
 let days=7, data=null, selectedUnit=null, timer=null;
@@ -45,7 +45,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const gb=v=>{v=Number(v||0);return v>=1000?(v/1000).toFixed(2)+' TB':v.toFixed(0)+' GB'};
 const pct=v=>Number(v||0).toFixed(1)+'%';
 const num=v=>Number(v||0).toFixed(1);
-const rate=u=>{if(u.rate_gb_day===null||u.rate_gb_day===undefined||u.projection_method==='AGUARDANDO HISTORICO')return '--';const prefix=u.projection_method==='HISTORICO'?'':'~';return prefix+num(u.rate_gb_day)};
+const rate=u=>{if(u.rate_gb_day===null||u.rate_gb_day===undefined||String(u.projection_method||'').includes('AGUARDANDO HISTORICO'))return '--';const real=String(u.projection_method||'').includes('MEDIA DIARIA REAL')||u.projection_method==='HISTORICO';return (real?'':'~')+num(u.rate_gb_day)};
 const dateBR=v=>{if(!v)return '-';const s=String(v).slice(0,10).split('-');return s.length===3?`${s[2]}/${s[1]}/${s[0]}`:v};
 const dtBR=v=>{if(!v)return '-';try{return new Date(v).toLocaleString('pt-BR')}catch{return v}};
 const slug=v=>String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');

@@ -6,16 +6,16 @@ import logging
 from pathlib import Path
 
 from agent import _recommended_action, enrich
-from analytics.trends import apply_historical_analytics
+from analytics.cycle_view import build_cycle_view, load_records
 from collectors.compass import CompassCollector
-from database.db import get_history_by_units, init_db
+from database.db import DB_PATH, init_db
 from reports.executive_report import generate_excel, generate_pdf
 
 BASE = Path(__file__).resolve().parent
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Gera PDF/XLSX v0.9.1 a partir de um CSV Compass, sem acessar o portal.")
+    parser = argparse.ArgumentParser(description="Gera PDF/XLSX v0.9.2 a partir de um CSV Compass, sem acessar o portal.")
     parser.add_argument("csv", help="Caminho para o CSV Starlink Fleet Usage")
     parser.add_argument("--period", default="", help="Rotulo do periodo; se omitido, tenta ler do nome do CSV")
     parser.add_argument("--ignore-db-history", action="store_true", help="Gera a previsao sem usar snapshots anteriores do SQLite")
@@ -28,13 +28,18 @@ def main():
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     logger = logging.getLogger("report-test")
-    rows = CompassCollector(cfg, logger)._parse_csv(Path(args.csv), args.period)
-    rows = enrich(rows, cfg)
+    parsed = CompassCollector(cfg, logger)._parse_csv(Path(args.csv), args.period)
+    parsed = enrich(parsed, cfg)
     init_db()
-    history = {} if args.ignore_db_history else get_history_by_units(
-        [r.get("unit") for r in rows], lookback_days=int(cfg.get("history", {}).get("lookback_days", 90))
+    records = [] if args.ignore_db_history else load_records(
+        DB_PATH, lookback_days=int(cfg.get("history", {}).get("lookback_days", 120))
     )
-    rows = apply_historical_analytics(rows, cfg, history)
+    # Add the test interval in memory without mutating SQLite.
+    base_id = max([int(r.get("id") or 0) for r in records] or [0])
+    for idx, r in enumerate(parsed, 1):
+        rr = dict(r); rr["id"] = base_id + idx
+        records.append(rr)
+    rows, _ = build_cycle_view(records, cfg)
     for r in rows:
         r["recommended_action"] = _recommended_action(r)
     xlsx = generate_excel(rows, cfg)

@@ -154,7 +154,10 @@ INSTALLED_VERSION="$(tr -d "\r\n" < "$INSTALL_DIR/VERSION.txt" 2>/dev/null || tr
 SOURCE_COLLECTOR_SHA="$(sha256sum "$SOURCE_DIR/collectors/compass.py" | awk '{print $1}')"
 DEST_COLLECTOR_SHA="$(sha256sum "$INSTALL_DIR/collectors/compass.py" | awk '{print $1}')"
 [[ "$SOURCE_COLLECTOR_SHA" == "$DEST_COLLECTOR_SHA" ]] || fail "collectors/compass.py do destino nao corresponde ao pacote."
-log "Deploy de codigo: OK (versao=$INSTALLED_VERSION collector_sha256=$DEST_COLLECTOR_SHA)"
+SOURCE_CYCLE_SHA="$(sha256sum "$SOURCE_DIR/analytics/cycle_view.py" | awk '{print $1}')"
+DEST_CYCLE_SHA="$(sha256sum "$INSTALL_DIR/analytics/cycle_view.py" | awk '{print $1}')"
+[[ "$SOURCE_CYCLE_SHA" == "$DEST_CYCLE_SHA" ]] || fail "analytics/cycle_view.py do destino nao corresponde ao pacote."
+log "Deploy de codigo: OK (versao=$INSTALLED_VERSION collector_sha256=$DEST_COLLECTOR_SHA cycle_view_sha256=$DEST_CYCLE_SHA)"
 
 # Instalar explicitamente os scripts operacionais. Isto evita que uma atualizacao
 # parcial deixe /opt/starlink-agent com os helpers de uma versao anterior.
@@ -171,6 +174,7 @@ HELPER_SCRIPTS=(
   test-report-linux.sh
   bootstrap-dashboard-linux.sh
   sync-history-linux.sh
+  audit-history-linux.sh
 )
 for helper in "${HELPER_SCRIPTS[@]}"; do
   [[ -f "$SOURCE_DIR/$helper" ]] || fail "Script obrigatorio ausente no pacote: $helper"
