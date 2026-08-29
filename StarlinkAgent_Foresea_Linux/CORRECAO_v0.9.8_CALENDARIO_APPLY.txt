@@ -1,0 +1,54 @@
+STARLINK CONSUMPTION AGENT v0.9.8
+CORRECAO DO FLUXO DE CALENDARIO DO COMPASS
+
+Problema observado
+------------------
+A tela Starlink Fleet Usage pode exibir o campo de periodo antes de o calendario
+terminar de renderizar. Alterar o valor cedo demais permite que o SPA restaure o
+periodo padrao (por exemplo 01/08 -> 28/08), fazendo o CSV sair acumulado.
+
+Fluxo v0.9.8
+-------------
+1. Aguarda Starlink Fleet Usage e botao CSV ficarem visiveis.
+2. Localiza o campo de periodo.
+3. Clica no campo para abrir o calendario.
+4. Aguarda o calendario renderizar de verdade, usando Apply + Today/Yesterday como marcadores.
+5. Para a coleta D-1, usa o atalho nativo Yesterday.
+6. Para backfill, altera o periodo somente depois que o calendario estiver aberto.
+7. Aguarda e clica obrigatoriamente em Apply.
+8. Aguarda o campo confirmar DATA -> MESMA DATA.
+9. Aguarda o relatorio atualizar e estabilizar.
+10. Confirma novamente o periodo imediatamente antes do CSV.
+11. Baixa o CSV.
+12. Valida novamente o periodo pelo nome real do arquivo.
+13. Se o arquivo nao for DAILY exato, move para data/rejected e nao importa.
+
+A coleta e fail-closed: sem calendario, sem Apply, sem confirmacao de periodo ou
+com nome de arquivo divergente, o CSV nao entra no banco.
+
+Novos parametros opcionais em config.json
+------------------------------------------
+  calendar_open_timeout_ms: 30000
+  calendar_apply_timeout_ms: 30000
+  calendar_poll_interval_ms: 500
+  daily_filter_timeout_ms: 45000
+  daily_filter_settle_seconds: 5
+
+Teste recomendado
+-----------------
+Executar manualmente com video habilitado:
+
+  sudo runuser -u starlinkagent -- env \
+    STARLINK_RECORD_VIDEO=1 \
+    STARLINK_TARGET_DATE=2026-08-28 \
+    STARLINK_SECRETS_FILE=/etc/starlink-agent/secrets.env \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/starlink-agent/.playwright \
+    /opt/starlink-agent/.venv/bin/python /opt/starlink-agent/agent.py
+
+O log esperado deve conter, nesta ordem:
+  Calendario Compass carregado...
+  Selecionando periodo pelo atalho... (para D-1)
+  Botao Apply do calendario acionado...
+  Filtro diario confirmado apos Apply e refresh...
+  CSV do Compass salvo...
+  Validacao pos-download OK...

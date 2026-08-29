@@ -637,6 +637,152 @@ class CompassCollector:
             and int(meta.get("period_days") or 0) == 1
         )
 
+    def _calendar_apply_button(self, page):
+        """Return the visible Apply button from the Compass date picker."""
+        patterns = [r"^Apply$", r"^Aplicar$", r"^Update$", r"^Atualizar$", r"^OK$"]
+        for pattern in patterns:
+            try:
+                loc = page.get_by_role("button", name=re.compile(pattern, re.I))
+                if loc.count() and loc.first.is_visible():
+                    return loc.first
+            except Exception:
+                continue
+        return None
+
+    def _wait_for_calendar_open(self, page):
+        """Open and wait for the Compass date picker to render completely.
+
+        The Starlink Fleet Usage SPA may show the date-range input before the
+        calendar overlay is mounted. Downloading or changing the range during
+        this window can leave the default month-to-date period active.
+        """
+        cfg = self.config.get("compass", {})
+        timeout_ms = int(cfg.get("calendar_open_timeout_ms", 30000))
+        poll_ms = max(250, int(cfg.get("calendar_poll_interval_ms", 500)))
+        deadline = time.time() + timeout_ms / 1000.0
+        next_log = time.time() + 5
+
+        while time.time() < deadline:
+            apply_button = self._calendar_apply_button(page)
+            yesterday_visible = False
+            today_visible = False
+            try:
+                yesterday = page.get_by_text(re.compile(r"^Yesterday$|^Ontem$", re.I))
+                yesterday_visible = bool(yesterday.count() and yesterday.first.is_visible())
+            except Exception:
+                pass
+            try:
+                today = page.get_by_text(re.compile(r"^Today$|^Hoje$", re.I))
+                today_visible = bool(today.count() and today.first.is_visible())
+            except Exception:
+                pass
+
+            # Apply is the strongest readiness marker from the live Compass UI.
+            # The shortcuts are additional evidence that the popup has rendered.
+            if apply_button is not None and (yesterday_visible or today_visible):
+                self.logger.info("Calendario Compass carregado e pronto para selecao de periodo.")
+                return apply_button
+
+            if time.time() >= next_log:
+                self.logger.info(
+                    "Aguardando calendario Compass renderizar (Apply=%s, Yesterday=%s, Today=%s).",
+                    bool(apply_button), yesterday_visible, today_visible,
+                )
+                next_log = time.time() + 5
+            time.sleep(poll_ms / 1000.0)
+
+        return None
+
+    def _open_calendar(self, page, period_input):
+        """Click the date-range control and wait for the calendar overlay."""
+        last_error = None
+        for attempt in range(1, 4):
+            try:
+                period_input.scroll_into_view_if_needed(timeout=3000)
+            except Exception:
+                pass
+            try:
+                period_input.click(timeout=5000, force=(attempt > 1))
+            except Exception as exc:
+                last_error = exc
+                try:
+                    # Some Compass builds attach the click handler to the parent
+                    # container/calendar icon instead of the readonly input itself.
+                    period_input.evaluate("el => (el.parentElement || el).click()")
+                except Exception as fallback_exc:
+                    last_error = fallback_exc
+
+            apply_button = self._wait_for_calendar_open(page)
+            if apply_button is not None:
+                return apply_button
+
+            self.logger.warning("Calendario nao abriu na tentativa %s/3.", attempt)
+            time.sleep(1)
+
+        diag = self._diagnostic_snapshot(page, "calendar_not_open")
+        raise RuntimeError(
+            "Calendario de periodo do Compass nao carregou apos clicar no campo de data. "
+            f"Diagnostico: {diag.get('meta')} | Erro: {last_error}"
+        )
+
+    def _select_calendar_target(self, page, period_input, target: date) -> str:
+        """Select an exact one-day range in the already-open Compass calendar.
+
+        Scheduled collection normally requests yesterday, so the native
+        'Yesterday' shortcut is preferred because it atomically sets both start
+        and end dates. For operational backfills, the range input is updated only
+        *after* the calendar is fully rendered, then Apply is used normally.
+        """
+        expected = f"{target.isoformat()} - {target.isoformat()}"
+        today = datetime.now().date()
+
+        shortcut_patterns = []
+        if target == today - timedelta(days=1):
+            shortcut_patterns = [r"^Yesterday$", r"^Ontem$"]
+        elif target == today:
+            shortcut_patterns = [r"^Today$", r"^Hoje$"]
+
+        for pattern in shortcut_patterns:
+            try:
+                shortcut = page.get_by_text(re.compile(pattern, re.I))
+                if shortcut.count() and shortcut.first.is_visible():
+                    self.logger.info("Selecionando periodo pelo atalho do calendario: %s", shortcut.first.inner_text())
+                    shortcut.first.click(timeout=5000)
+                    return expected
+            except Exception as exc:
+                self.logger.warning("Falha ao usar atalho do calendario (%s); usando preenchimento controlado.", exc)
+
+        # Backfill/fallback: calendar is already open, so setting the input no
+        # longer races the SPA calendar initialization. Apply is still mandatory.
+        self.logger.info("Definindo intervalo no calendario carregado: %s", expected)
+        self._apply_period_value(period_input, expected)
+        return expected
+
+    def _click_calendar_apply(self, page) -> None:
+        """Wait for and click Apply; never proceed to CSV without this step."""
+        cfg = self.config.get("compass", {})
+        timeout_ms = int(cfg.get("calendar_apply_timeout_ms", 30000))
+        poll_ms = max(250, int(cfg.get("calendar_poll_interval_ms", 500)))
+        deadline = time.time() + timeout_ms / 1000.0
+
+        while time.time() < deadline:
+            button = self._calendar_apply_button(page)
+            if button is not None:
+                try:
+                    if button.is_enabled():
+                        button.click(timeout=5000)
+                        self.logger.info("Botao Apply do calendario acionado. Aguardando atualizacao do relatorio.")
+                        return
+                except Exception:
+                    pass
+            time.sleep(poll_ms / 1000.0)
+
+        diag = self._diagnostic_snapshot(page, "calendar_apply_not_available")
+        raise RuntimeError(
+            "Botao Apply do calendario nao ficou disponivel. Download cancelado. "
+            f"Diagnostico: {diag.get('meta')}"
+        )
+
     def _apply_period_value(self, period_input, value: str) -> None:
         """Set the React/HTML date range input and dispatch the normal events."""
         last_error = None
@@ -678,8 +824,10 @@ class CompassCollector:
     def _set_daily_period(self, page, target: date) -> str:
         """Force Compass Fleet Usage to one exact day before CSV download.
 
-        The live collector is intentionally fail-closed: if the UI does not show
-        target->target after the change, it does not download/import a broad range.
+        v0.9.8 follows the real UI sequence observed in Compass:
+        date control -> wait calendar -> choose target -> Apply -> wait refresh ->
+        validate exact period -> CSV. The download is fail-closed if any stage
+        cannot be confirmed.
         """
         expected = f"{target.isoformat()} - {target.isoformat()}"
         period_input = self._period_input(page)
@@ -692,49 +840,69 @@ class CompassCollector:
 
         before = self._period_label(page)
         self.logger.info("Periodo Compass antes do filtro diario: %s", before or "(nao identificado)")
-        self.logger.info("Aplicando filtro diario obrigatorio: %s", expected)
-        self._apply_period_value(period_input, expected)
+        self.logger.info("Abrindo calendario para aplicar filtro diario obrigatorio: %s", expected)
 
-        # Some date pickers expose an Apply/Update button after editing.
-        for pattern in [r"^Apply$", r"^Aplicar$", r"^Update$", r"^Atualizar$", r"^OK$"]:
-            try:
-                button = page.get_by_role("button", name=re.compile(pattern, re.I))
-                if button.count() and button.first.is_visible():
-                    button.first.click(timeout=3000)
-                    break
-            except Exception:
-                continue
+        # Critical ordering: do not edit the date until the calendar itself has
+        # finished rendering. This prevents the portal default (month-to-date)
+        # from overwriting the value immediately before CSV export.
+        self._open_calendar(page, period_input)
+        self._select_calendar_target(page, period_input, target)
+        self._click_calendar_apply(page)
 
-        timeout_ms = int(self.config.get("compass", {}).get("daily_filter_timeout_ms", 30000))
+        timeout_ms = int(self.config.get("compass", {}).get("daily_filter_timeout_ms", 45000))
         poll_ms = max(250, int(self.config.get("compass", {}).get("daily_filter_poll_interval_ms", 500)))
         deadline = time.time() + timeout_ms / 1000.0
+        confirmed_label = ""
+
         while time.time() < deadline:
             label = self._period_label(page)
             meta = parse_period(label, None)
             if self._period_is_exact_day(meta, target):
-                # The date label can change before the chart/export dataset finishes
-                # refreshing. Network-idle is best-effort because the SPA may keep
-                # long-lived connections open; a short settle delay remains as a guard.
-                try:
-                    page.wait_for_load_state("networkidle", timeout=15000)
-                except Exception:
-                    pass
-                settle = max(0, int(self.config.get("compass", {}).get("daily_filter_settle_seconds", 4)))
-                if settle:
-                    time.sleep(settle)
-                csv_button = self._wait_for_usage_page_ready(page)
-                if csv_button is None:
-                    break
-                self.logger.info("Filtro diario confirmado no Compass: %s", label)
-                return label
+                confirmed_label = label
+                break
             time.sleep(poll_ms / 1000.0)
 
-        diag = self._diagnostic_snapshot(page, "daily_period_not_applied")
-        raise RuntimeError(
-            f"Compass nao confirmou o periodo diario {expected}. Valor atual: {self._period_label(page) or '(vazio)'}. "
-            "Download cancelado para evitar contaminar o historico. "
-            f"Diagnostico: {diag.get('meta')}"
-        )
+        if not confirmed_label:
+            diag = self._diagnostic_snapshot(page, "daily_period_not_applied")
+            raise RuntimeError(
+                f"Compass nao confirmou o periodo diario {expected} depois do Apply. "
+                f"Valor atual: {self._period_label(page) or '(vazio)'}. "
+                "Download cancelado para evitar contaminar o historico. "
+                f"Diagnostico: {diag.get('meta')}"
+            )
+
+        # The label can update before chart/API data. Wait for the refreshed
+        # report and the export control to be ready again before download.
+        try:
+            page.wait_for_load_state("networkidle", timeout=15000)
+        except Exception:
+            pass
+
+        settle = max(0, int(self.config.get("compass", {}).get("daily_filter_settle_seconds", 5)))
+        if settle:
+            self.logger.info("Periodo confirmado. Aguardando %ss para estabilizacao dos dados filtrados.", settle)
+            time.sleep(settle)
+
+        csv_button = self._wait_for_usage_page_ready(page)
+        if csv_button is None:
+            diag = self._diagnostic_snapshot(page, "daily_period_csv_not_ready")
+            raise RuntimeError(
+                "Periodo diario foi aplicado, mas o botao CSV nao ficou pronto apos a atualizacao. "
+                f"Diagnostico: {diag.get('meta')}"
+            )
+
+        # Final pre-download confirmation after the report refresh.
+        final_label = self._period_label(page)
+        final_meta = parse_period(final_label, None)
+        if not self._period_is_exact_day(final_meta, target):
+            diag = self._diagnostic_snapshot(page, "daily_period_changed_before_csv")
+            raise RuntimeError(
+                f"Periodo mudou antes do download. Esperado {expected}; atual {final_label or '(vazio)'}. "
+                f"CSV nao sera baixado. Diagnostico: {diag.get('meta')}"
+            )
+
+        self.logger.info("Filtro diario confirmado apos Apply e refresh: %s", final_label)
+        return final_label
 
     def _quarantine_download(self, path: Path, reason: str) -> Path:
         REJECTED_DIR.mkdir(parents=True, exist_ok=True)
@@ -1237,8 +1405,8 @@ class CompassCollector:
                     try:
                         if target_date is not None:
                             self.logger.info(
-                                "Coleta diaria v0.9.7: tentativa %s/%s para %s.",
-                                attempt, retries, target_date.isoformat(),
+                                "Coleta diaria v%s: tentativa %s/%s para %s.",
+                                APP_VERSION, attempt, retries, target_date.isoformat(),
                             )
                             period = self._set_daily_period(page, target_date)
                             csv_button = self._wait_for_usage_page_ready(page)

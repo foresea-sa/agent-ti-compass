@@ -1,4 +1,4 @@
-FORESEA STARLINK CONSUMPTION AGENT v0.9.7 - LINUX
+FORESEA STARLINK CONSUMPTION AGENT v0.9.8 - LINUX
 =================================================
 
 Objetivo
@@ -66,3 +66,10 @@ Diagnostico:
 
 A pagina consolidada e seu endpoint dedicado ficam protegidos por Basic Auth no reverse proxy.
 Consulte CADDY_HTTPS_v0.9.4.txt.
+
+
+v0.9.8 - calendario Compass
+--------------------------
+A coleta diaria aguarda o date picker carregar, seleciona D-1, clica Apply,
+aguarda o relatorio atualizar e somente entao permite o download CSV.
+Consulte CORRECAO_v0.9.8_CALENDARIO_APPLY.txt.
