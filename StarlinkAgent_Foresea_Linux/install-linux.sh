@@ -134,6 +134,12 @@ for d in "${CODE_DIRS[@]}"; do
   cp -a "$SOURCE_DIR/$d" "$INSTALL_DIR/$d"
 done
 
+# v0.9.7: database/ contem codigo E dados de runtime. Nunca remova a pasta
+# durante upgrade. Atualize apenas db.py e preserve starlink.db/backups.
+mkdir -p "$INSTALL_DIR/database"
+[[ -f "$SOURCE_DIR/database/db.py" ]] || fail "Arquivo de codigo ausente: database/db.py"
+install -m 0644 "$SOURCE_DIR/database/db.py" "$INSTALL_DIR/database/db.py"
+
 # Arquivos de codigo/configuracao/documentacao na raiz sao atualizados sempre.
 for src in "$SOURCE_DIR"/*.py "$SOURCE_DIR"/*.txt "$SOURCE_DIR"/requirements* "$SOURCE_DIR"/config.example.json; do
   [[ -e "$src" ]] || continue
@@ -157,7 +163,10 @@ DEST_COLLECTOR_SHA="$(sha256sum "$INSTALL_DIR/collectors/compass.py" | awk '{pri
 SOURCE_CYCLE_SHA="$(sha256sum "$SOURCE_DIR/analytics/cycle_view.py" | awk '{print $1}')"
 DEST_CYCLE_SHA="$(sha256sum "$INSTALL_DIR/analytics/cycle_view.py" | awk '{print $1}')"
 [[ "$SOURCE_CYCLE_SHA" == "$DEST_CYCLE_SHA" ]] || fail "analytics/cycle_view.py do destino nao corresponde ao pacote."
-log "Deploy de codigo: OK (versao=$INSTALLED_VERSION collector_sha256=$DEST_COLLECTOR_SHA cycle_view_sha256=$DEST_CYCLE_SHA)"
+SOURCE_DB_SHA="$(sha256sum "$SOURCE_DIR/database/db.py" | awk '{print $1}')"
+DEST_DB_SHA="$(sha256sum "$INSTALL_DIR/database/db.py" | awk '{print $1}')"
+[[ "$SOURCE_DB_SHA" == "$DEST_DB_SHA" ]] || fail "database/db.py do destino nao corresponde ao pacote."
+log "Deploy de codigo: OK (versao=$INSTALLED_VERSION collector_sha256=$DEST_COLLECTOR_SHA cycle_view_sha256=$DEST_CYCLE_SHA db_sha256=$DEST_DB_SHA)"
 [[ -f "$INSTALL_DIR/dashboard/static/cover.html" ]] || fail "Dashboard cover.html ausente apos deploy."
 [[ -f "$INSTALL_DIR/dashboard/static/unit.html" ]] || fail "Dashboard unit.html ausente apos deploy."
 [[ -f "$INSTALL_DIR/dashboard/static/consolidated.html" ]] || fail "Dashboard consolidated.html ausente apos deploy."

@@ -20,7 +20,13 @@
     "video_width": 960,
     "video_height": 540,
     "video_fps": 10,
-    "video_crf": 30
+    "video_crf": 30,
+    "daily_collection_enabled": true,
+    "daily_offset_days": 1,
+    "daily_download_attempts": 2,
+    "daily_filter_timeout_ms": 30000,
+    "daily_filter_poll_interval_ms": 500,
+    "daily_filter_settle_seconds": 4
   },
   "collection": {
     "mode": "compass",

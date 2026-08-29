@@ -171,6 +171,8 @@ def _choose_authoritative_range(records: list[dict], cycle_start: date, latest_d
         days = int(r.get("period_days") or 0)
         if not ps or not pe or days <= 1:
             continue
+        if str(r.get("fact_type") or "INTERVAL").upper() == "DAILY":
+            continue
         # Prefer cycle-to-date exports. A range starting before cycle_start is also
         # accepted only when cycle_start is day 1 and the range begins on day 1.
         start_ok = ps == cycle_start
@@ -238,6 +240,8 @@ def build_cycle_view(records: list[dict], config: dict, now: date | None = None)
         for r in cycle_records:
             ps, pe = _d(r.get("period_start")), _d(r.get("period_end"))
             if not ps or not pe or ps != pe or int(r.get("period_days") or 1) != 1:
+                continue
+            if str(r.get("fact_type") or "DAILY").upper() not in {"", "DAILY"}:
                 continue
             prev = by_day.get(pe)
             if prev is None or (str(r.get("collected_at") or ""), int(r.get("id") or 0)) > (str(prev.get("collected_at") or ""), int(prev.get("id") or 0)):

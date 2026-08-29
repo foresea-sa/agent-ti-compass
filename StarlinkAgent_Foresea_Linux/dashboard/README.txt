@@ -1,4 +1,4 @@
-STARLINK DASHBOARD v0.9.6
+STARLINK DASHBOARD v0.9.7
 
 ROTAS
 - /                         Capa executiva com cards por localidade.
@@ -14,4 +14,4 @@ CONFIGURACAO
 A rota consolidada pode ser alterada em config.json:
   dashboard.consolidated_path
 
-O dashboard usa o mesmo SQLite e analytics v0.9.2+ para todos os modos de exibicao.
+O dashboard usa o mesmo SQLite e analytics de intervalos/consumo diario para todos os modos de exibicao.

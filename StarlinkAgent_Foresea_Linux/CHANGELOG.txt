@@ -171,3 +171,15 @@ v0.9.6
 - Services systemd passam a usar descricao sem numero de versao para evitar divergencia apos upgrade.
 - Dashboard consolidado recebe a versao dinamicamente da API.
 - configure-caddy-linux.sh corrige ownership/permissoes de /var/log/caddy antes de iniciar o servico.
+
+v0.9.7
+- Coleta Compass passa a forcar o periodo diario de D-1 antes de exportar o CSV.
+- STARLINK_TARGET_DATE=YYYY-MM-DD permite retry/backfill controlado de um dia especifico.
+- Validacao fail-closed cruza periodo exibido na pagina e periodo do nome do CSV.
+- CSV de intervalo retornado por engano e movido para data/rejected e nao e importado.
+- Parser passa a considerar o periodo do nome do arquivo como fonte autoritativa.
+- Divergencias pagina x filename sao registradas e nao transformam intervalos em fatos diarios.
+- Banco adiciona fact_type (DAILY/INTERVAL) e corrige automaticamente metadados legados quando source_file contem o periodo real.
+- sync-history-linux.sh recebe --rebuild para backup e reconstrucao segura do SQLite a partir de data/raw.
+- Collector build passa a usar VERSION.txt, removendo identificador antigo fixo.
+- Instalador deixa de substituir database/ durante upgrade; somente database/db.py e atualizado e o starlink.db de producao e preservado.

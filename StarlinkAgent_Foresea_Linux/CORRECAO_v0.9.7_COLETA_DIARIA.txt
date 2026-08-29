@@ -1,0 +1,36 @@
+STARLINK AGENT v0.9.7 - CORRECAO DA COLETA DIARIA
+
+Problema corrigido
+------------------
+O Compass podia permanecer com o periodo 01/MM -> D-1 e o agente exportava esse acumulado.
+Em alguns casos a pagina indicava um periodo diferente do filename, permitindo que um intervalo
+fosse armazenado como consumo de um unico dia.
+
+Comportamento v0.9.7
+--------------------
+1. A execucao agendada calcula D-1. Ex.: em 29/08/2026 solicita 28/08/2026.
+2. O campo de periodo da tela Starlink Fleet Usage e forçado para 28/08 -> 28/08.
+3. Antes do download, a tela precisa confirmar o mesmo dia no inicio e no fim.
+4. Depois do download, o nome do arquivo tambem precisa conter 2026-08-28_to_2026-08-28.
+5. Se o Compass devolver 2026-08-01_to_2026-08-28, o arquivo vai para data/rejected e NAO entra no banco.
+6. O parser usa o filename como fonte autoritativa do periodo.
+7. DAILY = start=end; INTERVAL = start<end. Intervalos nunca entram na serie de consumo diario.
+
+Backfill manual
+---------------
+Para coletar um dia especifico sem mudar config.json:
+
+  sudo runuser -u starlinkagent -- env \
+    STARLINK_TARGET_DATE=2026-08-28 \
+    STARLINK_SECRETS_FILE=/etc/starlink-agent/secrets.env \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/starlink-agent/.playwright \
+    /opt/starlink-agent/.venv/bin/python /opt/starlink-agent/agent.py
+
+Reparo do historico
+--------------------
+A v0.9.7 corrige metadados legados no init_db quando o source_file contem o periodo real.
+Para uma reconstrucao integral e auditavel a partir dos CSVs locais:
+
+  sudo /opt/starlink-agent/sync-history-linux.sh --rebuild
+
+O comando cria backup do starlink.db antes de reconstruir.
