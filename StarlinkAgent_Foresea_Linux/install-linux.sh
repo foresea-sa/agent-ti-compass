@@ -161,7 +161,7 @@ log "Deploy de codigo: OK (versao=$INSTALLED_VERSION collector_sha256=$DEST_COLL
 [[ -f "$INSTALL_DIR/dashboard/static/cover.html" ]] || fail "Dashboard cover.html ausente apos deploy."
 [[ -f "$INSTALL_DIR/dashboard/static/unit.html" ]] || fail "Dashboard unit.html ausente apos deploy."
 [[ -f "$INSTALL_DIR/dashboard/static/consolidated.html" ]] || fail "Dashboard consolidated.html ausente apos deploy."
-log "Dashboard UI v0.9.4: OK (capa + unidade + consolidado protegido via endpoint dedicado)"
+log "Dashboard UI v${PACKAGE_VERSION}: OK (capa + unidade + consolidado protegido via endpoint dedicado)"
 
 # Instalar explicitamente os scripts operacionais. Isto evita que uma atualizacao
 # parcial deixe /opt/starlink-agent com os helpers de uma versao anterior.

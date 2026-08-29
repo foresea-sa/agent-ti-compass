@@ -36,7 +36,7 @@
   <section class="panel alerts"><div class="panel-head"><h2>Alertas e previsão de franquia</h2><span class="subtitle">Prioriza estouro atual, previsto e risco alto</span></div><div id="alerts"></div></section>
 
   <section class="panel table-panel"><div class="panel-head"><h2>Visão consolidada por unidade</h2><span id="generatedAt" class="subtitle"></span></div><table class="table"><thead><tr><th>Unidade</th><th>Periodo</th><th>Consumo</th><th>Franquia</th><th>Uso</th><th>Status</th><th>GB/dia</th><th>Tendência</th><th>Risco</th><th>Confianca</th><th>Data 100%</th><th>Fim ciclo</th><th>Overage proj.</th><th>Dados</th><th>Service Line</th></tr></thead><tbody id="unitTable"></tbody></table></section>
-  <div class="footer"><span><span class="dot"></span>Dashboard consolidado v0.9.4</span><span id="autoRefresh">Atualização automática</span></div>
+  <div class="footer"><span><span class="dot"></span>Dashboard consolidado <span id="appVersion"></span></span><span id="autoRefresh">Atualização automática</span></div>
 </div>
 <script>
 let days=7, data=null, selectedUnit=null, timer=null;
@@ -60,6 +60,7 @@ async function load(){
 }
 function render(){
   const s=data.summary||{};
+  if($('appVersion')) $('appVersion').textContent=data.version?`v${data.version}`:'';
   $('kUsage').textContent=gb(s.total_usage_gb); $('kQuota').textContent=gb(s.total_quota_gb); $('kOverage').textContent=gb(s.total_overage_gb); $('kProjected').textContent=gb(s.projected_overage_gb); $('kRisk').textContent=s.at_risk??0; $('kUnits').textContent=s.units??0;
   $('lastCollection').textContent='Última coleta: '+dtBR(s.last_collection); $('generatedAt').textContent='Painel atualizado: '+dtBR(data.generated_at);
   const first=(data.units||[])[0]||{}; const period=(s.period_start&&s.period_end)?`${dateBR(s.period_start)} a ${dateBR(s.period_end)}`:(first.period||'-');

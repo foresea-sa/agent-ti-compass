@@ -13,7 +13,7 @@ BASE = Path(__file__).resolve().parent
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Importa um CSV Compass como intervalo auditavel no SQLite v0.9.2.")
+    parser = argparse.ArgumentParser(description="Importa um CSV Compass como intervalo auditavel no SQLite.")
     parser.add_argument("csv", help="CSV exportado de Starlink Fleet Usage")
     parser.add_argument("--period", default="", help="Periodo opcional. Normalmente e detectado pelo nome do arquivo.")
     args = parser.parse_args()
@@ -38,7 +38,7 @@ def main():
     print(f"Unidades lidas: {len(rows)}")
     print(f"Snapshots novos gravados: {inserted}")
     if inserted == 0:
-        print("Nenhum registro novo: o intervalo ja existia no banco (deduplicacao v0.9.2).")
+        print("Nenhum registro novo: o intervalo ja existia no banco (deduplicacao ativa).")
 
 
 if __name__ == "__main__":

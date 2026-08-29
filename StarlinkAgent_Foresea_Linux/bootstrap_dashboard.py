@@ -50,7 +50,7 @@ def raw_csv_candidates() -> list[Path]:
 
 def process_rows(rows: list[dict], cfg: dict) -> int:
     rows = enrich(rows, cfg)
-    # Store interval records as-is. v0.9.2 builds cycle analytics at read time.
+    # Store interval records as-is. Cycle analytics are built at read time.
     for row in rows:
         row["recommended_action"] = _recommended_action(row)
     return insert_rows(rows)
@@ -104,7 +104,7 @@ def main() -> int:
     live_if_empty = bool(dash.get("bootstrap_live_collect_if_empty", True))
 
     try:
-        # v0.9.2: sincroniza TODOS os CSVs de data/raw mesmo quando o DB ja possui
+        # Sincroniza TODOS os CSVs de data/raw mesmo quando o DB ja possui
         # registros. A deduplicacao por snapshot_key torna esta operacao idempotente.
         if import_all_raw or (existing_before == 0 and prefer_raw):
             import_raw_history(cfg)

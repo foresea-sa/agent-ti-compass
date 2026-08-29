@@ -216,7 +216,15 @@ EOF
 chown root:caddy "$CADDYFILE"
 chmod 0640 "$CADDYFILE"
 
+# O servico oficial roda como usuario caddy. Garanta acesso ao arquivo de log
+# antes do restart; sem isto o Caddy valida a sintaxe, mas falha em runtime.
+install -d -m 0750 -o caddy -g caddy /var/log/caddy
+touch /var/log/caddy/starlink-dashboard-access.log
+chown caddy:caddy /var/log/caddy/starlink-dashboard-access.log
+chmod 0640 /var/log/caddy/starlink-dashboard-access.log
+
 log "Validando Caddyfile..."
+caddy fmt --overwrite "$CADDYFILE" >/dev/null 2>&1 || true
 caddy validate --config "$CADDYFILE" --adapter caddyfile
 systemctl daemon-reload
 systemctl enable caddy >/dev/null 2>&1 || true
