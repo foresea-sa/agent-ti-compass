@@ -3,6 +3,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from utils.periods import parse_period, snapshot_key
+
 DB_PATH = Path(__file__).resolve().parent / "starlink.db"
 
 SCHEMA = """
@@ -13,6 +15,7 @@ CREATE TABLE IF NOT EXISTS usage_history (
     period_start TEXT,
     period_end TEXT,
     period_days INTEGER,
+    fact_type TEXT,
     unit TEXT NOT NULL,
     source_name TEXT,
     source_file TEXT,
@@ -54,7 +57,7 @@ CREATE TABLE IF NOT EXISTS usage_history (
 """
 
 EXPECTED_COLUMNS = {
-    "period": "TEXT", "period_start": "TEXT", "period_end": "TEXT", "period_days": "INTEGER",
+    "period": "TEXT", "period_start": "TEXT", "period_end": "TEXT", "period_days": "INTEGER", "fact_type": "TEXT",
     "source_name": "TEXT", "source_file": "TEXT", "source_sha256": "TEXT", "snapshot_key": "TEXT",
     "terminal": "TEXT", "kit_name": "TEXT", "service_line": "TEXT", "plan_name": "TEXT",
     "quota_gb": "REAL", "priority_gb": "REAL", "booster_gb": "REAL", "standard_gb": "REAL",
@@ -68,7 +71,7 @@ EXPECTED_COLUMNS = {
 }
 
 INSERT_COLUMNS = [
-    "collected_at", "period", "period_start", "period_end", "period_days", "unit", "source_name",
+    "collected_at", "period", "period_start", "period_end", "period_days", "fact_type", "unit", "source_name",
     "source_file", "source_sha256", "snapshot_key", "terminal", "kit_name", "service_line", "plan_name",
     "quota_gb", "priority_gb", "booster_gb", "standard_gb", "overage_gb", "download_gb", "upload_gb",
     "total_gb", "remaining_gb", "usage_pct", "portal_usage_pct", "daily_avg_gb", "projected_gb", "status",
@@ -85,8 +88,56 @@ def init_db():
         for name, sql_type in EXPECTED_COLUMNS.items():
             if name not in existing:
                 conn.execute(f"ALTER TABLE usage_history ADD COLUMN {name} {sql_type}")
+        # v0.9.7 self-healing migration: older live collections could trust a
+        # stale page label over the actual exported filename. If source_file says
+        # 01->28 but the row was stored as 28->28, correct the metadata before
+        # analytics classify it as DAILY.
+        conn.row_factory = sqlite3.Row
+        legacy_rows = conn.execute(
+            "SELECT * FROM usage_history WHERE source_file IS NOT NULL AND source_file <> ''"
+        ).fetchall()
+        repaired = 0
+        removed_duplicates = 0
+        for raw in legacy_rows:
+            row = dict(raw)
+            meta = parse_period(None, row.get("source_file"))
+            ps, pe = meta.get("period_start"), meta.get("period_end")
+            if not ps or not pe:
+                continue
+            expected_days = int(meta.get("period_days") or 0)
+            current = (str(row.get("period_start") or ""), str(row.get("period_end") or ""), int(row.get("period_days") or 0))
+            expected = (ps, pe, expected_days)
+            expected_type = "DAILY" if expected_days == 1 else "INTERVAL"
+            if current == expected and str(row.get("fact_type") or "") == expected_type:
+                continue
+            fixed = dict(row)
+            fixed.update({
+                "period": meta.get("period_label"),
+                "period_start": ps,
+                "period_end": pe,
+                "period_days": expected_days,
+                "fact_type": expected_type,
+            })
+            new_key = snapshot_key(fixed)
+            duplicate = conn.execute(
+                "SELECT id FROM usage_history WHERE snapshot_key=? AND id<>? LIMIT 1",
+                (new_key, row["id"]),
+            ).fetchone()
+            if duplicate:
+                conn.execute("DELETE FROM usage_history WHERE id=?", (row["id"],))
+                removed_duplicates += 1
+            else:
+                conn.execute(
+                    """UPDATE usage_history
+                       SET period=?, period_start=?, period_end=?, period_days=?, fact_type=?, snapshot_key=?
+                       WHERE id=?""",
+                    (meta.get("period_label"), ps, pe, expected_days, expected_type, new_key, row["id"]),
+                )
+                repaired += 1
+
         conn.execute("CREATE INDEX IF NOT EXISTS idx_usage_history_unit_date ON usage_history(unit, collected_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_usage_history_unit_period_end ON usage_history(unit, period_end)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_usage_history_fact_type ON usage_history(fact_type, period_end)")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_history_snapshot_key ON usage_history(snapshot_key) WHERE snapshot_key IS NOT NULL")
         conn.commit()
 

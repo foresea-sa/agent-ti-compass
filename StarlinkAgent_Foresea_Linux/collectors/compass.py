@@ -7,13 +7,14 @@ import shutil
 import subprocess
 import time
 import unicodedata
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 from playwright.sync_api import sync_playwright
 
 from utils.periods import file_sha256, parse_period
+from utils.version import APP_VERSION
 from utils.secrets import get_secret
 
 BASE = Path(__file__).resolve().parents[1]
@@ -22,7 +23,8 @@ RAW_DIR = DATA_DIR / "raw"
 DEBUG_DIR = BASE / "logs" / "debug"
 VIDEO_DIR = DEBUG_DIR / "videos"
 VIDEO_RAW_DIR = VIDEO_DIR / "raw"
-AGENT_BUILD = "0.8.8"
+REJECTED_DIR = DATA_DIR / "rejected"
+AGENT_BUILD = APP_VERSION
 
 
 def _norm(value: object) -> str:
@@ -88,6 +90,7 @@ class CompassCollector:
         DEBUG_DIR.mkdir(parents=True, exist_ok=True)
         VIDEO_DIR.mkdir(parents=True, exist_ok=True)
         VIDEO_RAW_DIR.mkdir(parents=True, exist_ok=True)
+        REJECTED_DIR.mkdir(parents=True, exist_ok=True)
 
     def _video_enabled(self) -> bool:
         env = os.environ.get("STARLINK_RECORD_VIDEO", "").strip().lower()
@@ -586,6 +589,188 @@ class CompassCollector:
             pass
         return ""
 
+
+    def _period_input(self, page):
+        """Return the visible Compass date-range input, if present."""
+        try:
+            inputs = page.locator("input")
+            for idx in range(inputs.count()):
+                loc = inputs.nth(idx)
+                try:
+                    if not loc.is_visible():
+                        continue
+                    value = str(loc.input_value(timeout=1000) or "").strip()
+                except Exception:
+                    try:
+                        value = str(loc.get_attribute("value") or "").strip()
+                    except Exception:
+                        value = ""
+                if re.search(r"\d{4}[-/]\d{2}[-/]\d{2}.*\d{4}[-/]\d{2}[-/]\d{2}", value):
+                    return loc
+        except Exception:
+            pass
+        return None
+
+    def _target_daily_date(self) -> date:
+        """Resolve the day that the scheduled collector must export.
+
+        Default: previous calendar day. STARLINK_TARGET_DATE=YYYY-MM-DD is an
+        operational override for controlled backfill/retry without code changes.
+        """
+        override = os.environ.get("STARLINK_TARGET_DATE", "").strip()
+        if override:
+            try:
+                return datetime.strptime(override, "%Y-%m-%d").date()
+            except ValueError as exc:
+                raise RuntimeError(
+                    "STARLINK_TARGET_DATE invalida. Use YYYY-MM-DD, por exemplo 2026-08-28."
+                ) from exc
+        days_back = max(0, int(self.config.get("compass", {}).get("daily_offset_days", 1)))
+        return datetime.now().date() - timedelta(days=days_back)
+
+    @staticmethod
+    def _period_is_exact_day(meta: dict, target: date) -> bool:
+        expected = target.isoformat()
+        return (
+            str(meta.get("period_start") or "") == expected
+            and str(meta.get("period_end") or "") == expected
+            and int(meta.get("period_days") or 0) == 1
+        )
+
+    def _apply_period_value(self, period_input, value: str) -> None:
+        """Set the React/HTML date range input and dispatch the normal events."""
+        last_error = None
+        try:
+            period_input.click(timeout=3000)
+        except Exception:
+            pass
+        try:
+            period_input.fill(value, timeout=5000)
+            period_input.press("Enter", timeout=3000)
+            return
+        except Exception as exc:
+            last_error = exc
+
+        # Fallback for readonly/custom date-range inputs. Use the native value
+        # setter so React-style listeners receive input/change events.
+        try:
+            period_input.evaluate(
+                """(el, value) => {
+                    try { el.removeAttribute('readonly'); } catch (e) {}
+                    const proto = Object.getPrototypeOf(el);
+                    const desc = Object.getOwnPropertyDescriptor(proto, 'value') ||
+                                 Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+                    if (desc && desc.set) desc.set.call(el, value); else el.value = value;
+                    el.dispatchEvent(new Event('input', {bubbles:true}));
+                    el.dispatchEvent(new Event('change', {bubbles:true}));
+                    el.dispatchEvent(new Event('blur', {bubbles:true}));
+                }""",
+                value,
+            )
+            try:
+                period_input.press("Enter", timeout=3000)
+            except Exception:
+                pass
+            return
+        except Exception as exc:
+            raise RuntimeError(f"Nao foi possivel preencher o periodo Compass: {last_error or exc}") from exc
+
+    def _set_daily_period(self, page, target: date) -> str:
+        """Force Compass Fleet Usage to one exact day before CSV download.
+
+        The live collector is intentionally fail-closed: if the UI does not show
+        target->target after the change, it does not download/import a broad range.
+        """
+        expected = f"{target.isoformat()} - {target.isoformat()}"
+        period_input = self._period_input(page)
+        if period_input is None:
+            diag = self._diagnostic_snapshot(page, "daily_period_input_not_found")
+            raise RuntimeError(
+                "Campo de periodo do Compass nao encontrado. Coleta diaria cancelada para evitar importar intervalo. "
+                f"Diagnostico: {diag.get('meta')}"
+            )
+
+        before = self._period_label(page)
+        self.logger.info("Periodo Compass antes do filtro diario: %s", before or "(nao identificado)")
+        self.logger.info("Aplicando filtro diario obrigatorio: %s", expected)
+        self._apply_period_value(period_input, expected)
+
+        # Some date pickers expose an Apply/Update button after editing.
+        for pattern in [r"^Apply$", r"^Aplicar$", r"^Update$", r"^Atualizar$", r"^OK$"]:
+            try:
+                button = page.get_by_role("button", name=re.compile(pattern, re.I))
+                if button.count() and button.first.is_visible():
+                    button.first.click(timeout=3000)
+                    break
+            except Exception:
+                continue
+
+        timeout_ms = int(self.config.get("compass", {}).get("daily_filter_timeout_ms", 30000))
+        poll_ms = max(250, int(self.config.get("compass", {}).get("daily_filter_poll_interval_ms", 500)))
+        deadline = time.time() + timeout_ms / 1000.0
+        while time.time() < deadline:
+            label = self._period_label(page)
+            meta = parse_period(label, None)
+            if self._period_is_exact_day(meta, target):
+                # The date label can change before the chart/export dataset finishes
+                # refreshing. Network-idle is best-effort because the SPA may keep
+                # long-lived connections open; a short settle delay remains as a guard.
+                try:
+                    page.wait_for_load_state("networkidle", timeout=15000)
+                except Exception:
+                    pass
+                settle = max(0, int(self.config.get("compass", {}).get("daily_filter_settle_seconds", 4)))
+                if settle:
+                    time.sleep(settle)
+                csv_button = self._wait_for_usage_page_ready(page)
+                if csv_button is None:
+                    break
+                self.logger.info("Filtro diario confirmado no Compass: %s", label)
+                return label
+            time.sleep(poll_ms / 1000.0)
+
+        diag = self._diagnostic_snapshot(page, "daily_period_not_applied")
+        raise RuntimeError(
+            f"Compass nao confirmou o periodo diario {expected}. Valor atual: {self._period_label(page) or '(vazio)'}. "
+            "Download cancelado para evitar contaminar o historico. "
+            f"Diagnostico: {diag.get('meta')}"
+        )
+
+    def _quarantine_download(self, path: Path, reason: str) -> Path:
+        REJECTED_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        dest = REJECTED_DIR / f"{stamp}_REJECTED_{path.name}"
+        try:
+            shutil.move(str(path), str(dest))
+        except Exception:
+            dest = path
+        self.logger.error("CSV rejeitado e nao importado: %s | motivo=%s", dest, reason)
+        return dest
+
+    def _validate_daily_download(self, path: Path, page_period: str, target: date) -> None:
+        """Cross-check page period AND portal filename against the requested day."""
+        page_meta = parse_period(page_period, None)
+        file_meta = parse_period(None, path.name)
+        errors = []
+        if not self._period_is_exact_day(page_meta, target):
+            errors.append(
+                f"pagina={page_meta.get('period_start')}->{page_meta.get('period_end')}"
+            )
+        if not self._period_is_exact_day(file_meta, target):
+            errors.append(
+                f"arquivo={file_meta.get('period_start')}->{file_meta.get('period_end')}"
+            )
+        if errors:
+            rejected = self._quarantine_download(path, "; ".join(errors))
+            raise RuntimeError(
+                f"Compass retornou periodo diferente do solicitado ({target.isoformat()}->{target.isoformat()}). "
+                f"{'; '.join(errors)}. Arquivo preservado fora de data/raw: {rejected}"
+            )
+        self.logger.info(
+            "Validacao pos-download OK: pagina e nome do CSV confirmam %s->%s.",
+            target.isoformat(), target.isoformat(),
+        )
+
     def _csv_locator(self, page):
         """Retorna o botao/link CSV visivel da pagina de Starlink Fleet Usage."""
         candidates = [
@@ -752,7 +937,26 @@ class CompassCollector:
         Data Boosters (GB), Priority (GB), Standard (GB), % of Limit.
         """
         df = self._load_csv(path)
-        period_meta = parse_period(period, path.name)
+        # v0.9.7: the exported filename is authoritative for the interval.
+        # The page label can be stale while the SPA refreshes; trusting it first
+        # previously allowed a 01->28 export to be stored as if it were 28->28.
+        file_meta = parse_period(None, path.name)
+        page_meta = parse_period(period, None)
+        if file_meta.get("period_start") and file_meta.get("period_end"):
+            period_meta = file_meta
+            if (
+                page_meta.get("period_start")
+                and (page_meta.get("period_start"), page_meta.get("period_end"))
+                != (file_meta.get("period_start"), file_meta.get("period_end"))
+            ):
+                self.logger.warning(
+                    "Divergencia de periodo pagina x arquivo. Pagina=%s->%s Arquivo=%s->%s. "
+                    "Usando o nome do arquivo como fonte autoritativa.",
+                    page_meta.get("period_start"), page_meta.get("period_end"),
+                    file_meta.get("period_start"), file_meta.get("period_end"),
+                )
+        else:
+            period_meta = page_meta
         period = period_meta.get("period_label") or period or ""
         source_hash = file_sha256(path)
         original_columns = [str(c).strip() for c in df.columns]
@@ -854,6 +1058,7 @@ class CompassCollector:
                 "period_start": period_meta.get("period_start"),
                 "period_end": period_meta.get("period_end"),
                 "period_days": period_meta.get("period_days"),
+                "fact_type": "DAILY" if int(period_meta.get("period_days") or 0) == 1 else "INTERVAL",
                 "source_file": path.name,
                 "source_sha256": source_hash,
                 "priority_gb": priority,
@@ -892,6 +1097,7 @@ class CompassCollector:
                     "period_start": row.get("period_start"),
                     "period_end": row.get("period_end"),
                     "period_days": row.get("period_days"),
+                    "fact_type": row.get("fact_type", ""),
                     "source_file": row.get("source_file", ""),
                     "source_sha256": row.get("source_sha256", ""),
                     "priority_gb": 0.0,
@@ -1020,8 +1226,46 @@ class CompassCollector:
                 )
 
             try:
-                period = self._period_label(page)
-                csv_path = self._download_csv(page, csv_button=csv_button)
+                daily_enabled = bool(cfg.get("daily_collection_enabled", True))
+                target_date = self._target_daily_date() if daily_enabled else None
+                retries = max(1, int(cfg.get("daily_download_attempts", 2))) if daily_enabled else 1
+                csv_path = None
+                period = ""
+                last_error = None
+
+                for attempt in range(1, retries + 1):
+                    try:
+                        if target_date is not None:
+                            self.logger.info(
+                                "Coleta diaria v0.9.7: tentativa %s/%s para %s.",
+                                attempt, retries, target_date.isoformat(),
+                            )
+                            period = self._set_daily_period(page, target_date)
+                            csv_button = self._wait_for_usage_page_ready(page)
+                            if csv_button is None:
+                                raise RuntimeError("Botao CSV nao ficou disponivel apos aplicar o periodo diario.")
+                        else:
+                            period = self._period_label(page)
+
+                        csv_path = self._download_csv(page, csv_button=csv_button)
+                        if target_date is not None:
+                            self._validate_daily_download(csv_path, period, target_date)
+                        break
+                    except Exception as exc:
+                        last_error = exc
+                        if attempt >= retries:
+                            raise
+                        self.logger.warning(
+                            "Tentativa de coleta diaria rejeitada: %s. Reabrindo a tela para nova tentativa.", exc
+                        )
+                        page.goto(usage_url, wait_until="domcontentloaded")
+                        csv_button = self._wait_for_usage_page_ready(page)
+                        if csv_button is None:
+                            raise RuntimeError("Starlink Fleet Usage nao ficou pronta na nova tentativa.") from exc
+
+                if csv_path is None:
+                    raise RuntimeError(f"CSV diario nao obtido: {last_error or 'erro desconhecido'}")
+
                 # Mantem cookies/tokens para acelerar a proxima execucao. Se expirarem, o agente reloga sozinho.
                 context.storage_state(path=str(state_path))
             except Exception:
