@@ -1,4 +1,4 @@
-FORESEA STARLINK AGENT v0.9.7 - LINUX
+FORESEA STARLINK AGENT v0.9.8 - LINUX
 ==================================
 1. chmod +x install-linux.sh
 2. sudo ./install-linux.sh

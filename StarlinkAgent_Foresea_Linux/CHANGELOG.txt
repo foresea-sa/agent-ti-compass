@@ -1,3 +1,11 @@
+v0.9.8
+- Corrige a sequencia de filtro de data no Compass: abrir calendario, aguardar renderizacao, selecionar data, Apply e somente depois CSV.
+- Usa o atalho nativo Yesterday para a coleta diaria D-1.
+- Adiciona espera explicita pelo calendario e pelo botao Apply.
+- Faz dupla confirmacao do periodo: apos Apply e imediatamente antes do download.
+- Mantem a validacao fail-closed do nome do CSV introduzida na v0.9.7.
+- Adiciona timeouts configuraveis para calendario e Apply.
+
 v0.9.3
 - Nova capa executiva com cards clicaveis por localidade.
 - Dashboard individual por unidade em /unidade/<UNIDADE>.

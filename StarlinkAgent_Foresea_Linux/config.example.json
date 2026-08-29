@@ -24,9 +24,12 @@
     "daily_collection_enabled": true,
     "daily_offset_days": 1,
     "daily_download_attempts": 2,
-    "daily_filter_timeout_ms": 30000,
+    "daily_filter_timeout_ms": 45000,
     "daily_filter_poll_interval_ms": 500,
-    "daily_filter_settle_seconds": 4
+    "daily_filter_settle_seconds": 5,
+    "calendar_open_timeout_ms": 30000,
+    "calendar_apply_timeout_ms": 30000,
+    "calendar_poll_interval_ms": 500
   },
   "collection": {
     "mode": "compass",

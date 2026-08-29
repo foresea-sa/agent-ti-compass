@@ -1,4 +1,4 @@
-STARLINK DASHBOARD v0.9.7
+STARLINK DASHBOARD v0.9.8
 
 ROTAS
 - /                         Capa executiva com cards por localidade.
