@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from analytics.cycle_view import build_cycle_view, load_records
 from database.db import init_db
 from reports.executive_report import generate_pdf
+from utils.version import APP_VERSION
 
 BASE = Path(__file__).resolve().parents[1]
 STATIC = Path(__file__).resolve().parent / "static"
@@ -92,6 +93,7 @@ def dashboard_data(days: int = 7) -> dict:
     max_age = max((int(r.get("data_age_days") or 0) for r in latest), default=0)
     stale_units = sum(1 for r in latest if str(r.get("data_freshness") or "").upper() == "DESATUALIZADO")
     return {
+        "version": APP_VERSION,
         "generated_at": datetime.now().isoformat(timespec="seconds"), "days": 30 if int(days) == 30 else 7, "refresh_seconds": refresh_seconds,
         "summary": {"units": len(latest), "total_usage_gb": total_usage, "total_quota_gb": total_quota,
                     "total_overage_gb": total_overage, "projected_overage_gb": projected_overage, "at_risk": at_risk,
@@ -106,7 +108,7 @@ def unit_data(unit: str, days: int = 30) -> dict | None:
     match = next((r for r in rows if str(r.get("unit") or "").upper() == str(unit).upper()), None)
     if match is None:
         return None
-    return {"generated_at": datetime.now().isoformat(timespec="seconds"), "refresh_seconds": refresh,
+    return {"version": APP_VERSION, "generated_at": datetime.now().isoformat(timespec="seconds"), "refresh_seconds": refresh,
             "unit": _display_row(match), "history": history.get(str(match.get("unit")), [])}
 
 
@@ -123,7 +125,7 @@ def _unit_pdf(unit: str) -> tuple[Path, str] | None:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "StarlinkDashboard/0.9.4"
+    server_version = f"StarlinkDashboard/{APP_VERSION}"
 
     def _common_headers(self, content_type: str, content_length: int | None = None, cache: str = "no-store"):
         self.send_header("Content-Type", content_type); self.send_header("Cache-Control", cache)
@@ -175,7 +177,7 @@ class Handler(BaseHTTPRequestHandler):
             pdf, filename = result
             self._send_bytes(pdf.read_bytes(), "application/pdf", cache="no-store", disposition=f'attachment; filename="{filename}"'); return
         if path == "/health":
-            self._send_json({"status": "ok", "version": "0.9.4", "db_exists": DB_PATH.exists(), "consolidated_path": _consolidated_path()}); return
+            self._send_json({"status": "ok", "version": APP_VERSION, "db_exists": DB_PATH.exists(), "consolidated_path": _consolidated_path()}); return
         if path == "/logo.png":
             logo = ASSETS / "logo.png"
             if logo.exists(): self._send_bytes(logo.read_bytes(), "image/png", cache="public, max-age=300")
@@ -190,7 +192,7 @@ def run():
     init_db(); cfg = _config(); dash = cfg.get("dashboard", {}); host = str(dash.get("host", "127.0.0.1")); port = int(dash.get("port", 8787))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     httpd = ThreadingHTTPServer((host, port), Handler)
-    logger.info("Dashboard Starlink v0.9.4 em http://%s:%s", host, port)
+    logger.info("Dashboard Starlink v%s em http://%s:%s", APP_VERSION, host, port)
     logger.info("Analise consolidada (nao exibida na navegacao): %s", _consolidated_path())
     if host not in {"127.0.0.1", "localhost", "::1"}: logger.warning("Dashboard exposto fora do localhost. Restrinja o acesso por firewall/VLAN; ocultar a rota consolidada nao substitui autenticacao.")
     try: httpd.serve_forever()

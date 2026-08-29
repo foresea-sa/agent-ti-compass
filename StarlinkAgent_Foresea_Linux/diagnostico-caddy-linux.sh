@@ -5,6 +5,8 @@ PROFILE="/etc/starlink-agent/caddy-profile.env"
 echo "=== Diagnostico Caddy / Starlink Dashboard ==="
 echo "Data: $(date -Is)"
 echo "Host: $(hostname -f 2>/dev/null || hostname)"
+APP_VERSION="$(tr -d '\r\n' < "$INSTALL_DIR/VERSION.txt" 2>/dev/null || echo desconhecida)"
+echo "Starlink Agent: v$APP_VERSION"
 echo
 if command -v caddy >/dev/null 2>&1; then echo "Caddy: $(caddy version)"; else echo "Caddy: NAO INSTALADO"; fi
 if [[ -f "$PROFILE" ]]; then

@@ -1,0 +1,28 @@
+STARLINK AGENT v0.9.6 - PADRONIZACAO DE VERSIONAMENTO
+
+Objetivo
+- Manter a versao do aplicativo em um unico ponto: VERSION.txt.
+- Evitar divergencias como pacote v0.9.5, Dashboard v0.9.4 e relatorio v0.9.2.
+- Remover o numero de versao do titulo dos relatorios PDF.
+
+Comportamento
+- /health informa a versao lida de VERSION.txt.
+- Header HTTP StarlinkDashboard usa a mesma versao.
+- Logs do Dashboard e do Agent usam a mesma versao.
+- Rodape do PDF informa a versao implantada.
+- Titulo do PDF permanece apenas: Relatorio Executivo - Consumo Starlink.
+- Descricoes systemd nao possuem numero de versao para nao ficarem obsoletas.
+
+Validacao apos instalar
+  cat /opt/starlink-agent/VERSION.txt
+  curl -s http://127.0.0.1:8787/health
+  systemctl status starlink-dashboard.service --no-pager
+  sudo /opt/starlink-agent/test-report-linux.sh
+
+Esperado
+- VERSION.txt: 0.9.6
+- /health: version = 0.9.6
+- PDF sem "v0.9.2" no titulo.
+
+Caddy
+- O configurador tambem garante /var/log/caddy como caddy:caddy e o access log 0640 antes do restart, evitando "permission denied" na porta 443.

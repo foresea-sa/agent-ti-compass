@@ -1,5 +1,5 @@
 [Unit]
-Description=Foresea Starlink Dashboard v0.9.0
+Description=Foresea Starlink Dashboard
 Wants=network-online.target
 After=network-online.target
 

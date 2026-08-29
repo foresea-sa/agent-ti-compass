@@ -1,4 +1,4 @@
-FORESEA STARLINK CONSUMPTION AGENT v0.9.3 - LINUX
+FORESEA STARLINK CONSUMPTION AGENT v0.9.6 - LINUX
 =================================================
 
 Objetivo

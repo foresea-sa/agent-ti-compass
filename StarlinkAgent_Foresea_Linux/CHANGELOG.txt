@@ -162,3 +162,12 @@ v0.9.5
 - adiciona automaticamente o repositorio oficial Caddy stable/Cloudsmith em Ubuntu/Debian.
 - instala chave GPG com keyring dedicado e lista de repositorio oficial.
 - mensagens especificas para bloqueio de proxy/firewall corporativo ao Cloudsmith.
+
+v0.9.6
+- Versionamento centralizado em VERSION.txt para Dashboard, /health, logs e ferramentas Python.
+- Removida a versao do titulo visivel dos relatorios PDF: "Relatorio Executivo - Consumo Starlink".
+- Rodape do PDF usa automaticamente a versao implantada.
+- Removidas referencias antigas v0.9.2/v0.9.4 de mensagens operacionais ativas.
+- Services systemd passam a usar descricao sem numero de versao para evitar divergencia apos upgrade.
+- Dashboard consolidado recebe a versao dinamicamente da API.
+- configure-caddy-linux.sh corrige ownership/permissoes de /var/log/caddy antes de iniciar o servico.

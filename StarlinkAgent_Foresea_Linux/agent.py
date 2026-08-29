@@ -9,6 +9,7 @@ from collectors.starlink_api import StarlinkAPICollector
 from database.db import DB_PATH, init_db, insert_rows
 from reports.executive_report import generate_excel, generate_pdf
 from utils.periods import snapshot_key
+from utils.version import APP_VERSION
 
 BASE = Path(__file__).resolve().parent
 CONFIG = BASE / "config.json"
@@ -145,7 +146,7 @@ def build_email(rows, config=None):
     return f"""
     <div style="font-family:Segoe UI,Arial,sans-serif;color:#263238;max-width:1100px">
       <div style="border-left:6px solid #00A7A7;padding-left:14px">
-        <h2 style="margin:0;color:#1F2933">{company} | Relatorio Diario Starlink v0.9.2</h2>
+        <h2 style="margin:0;color:#1F2933">{company} | Relatorio Diario Starlink</h2>
         <p style="margin:6px 0 0 0;color:#60727C">Consumo atual, historico, velocidade e previsao de esgotamento da franquia.</p>
       </div>
       <p>Prezados,</p>
@@ -187,7 +188,7 @@ def main():
     raw_rows = enrich(raw_rows, cfg)
     insert_rows(raw_rows)
 
-    # v0.9.2: Compass exports are interval totals. Reports and dashboard must use
+    # Compass exports are interval totals. Reports and dashboard must use
     # a cycle-to-date view reconstructed from daily interval files, not the latest
     # interval as if it were a cumulative snapshot.
     lookback = int(cfg.get("history", {}).get("lookback_days", 120))
@@ -198,7 +199,7 @@ def main():
 
     xlsx = generate_excel(rows, cfg)
     pdf = generate_pdf(rows, cfg)
-    logger.info("Relatorios v0.9.2 gerados: %s | %s", xlsx, pdf)
+    logger.info("Relatorios v%s gerados: %s | %s", APP_VERSION, xlsx, pdf)
 
     subject = f"{cfg['email']['subject_prefix']} | {datetime.now().strftime('%d/%m/%Y')}"
     body = build_email(rows, cfg)

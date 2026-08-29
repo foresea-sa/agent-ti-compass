@@ -18,6 +18,8 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from utils.version import APP_VERSION
+
 BASE = Path(__file__).resolve().parents[1]
 OUTPUT = BASE / "output"
 ASSETS = BASE / "assets"
@@ -484,7 +486,7 @@ def _pdf_header(story, styles, company: str, period: str):
     else:
         logo_flow = Paragraph(f"<b>{company}</b>", styles["ExecTitle"])
     title = [
-        Paragraph("Relatorio Executivo - Consumo Starlink v0.9.2", styles["ExecTitle"]),
+        Paragraph("Relatorio Executivo - Consumo Starlink", styles["ExecTitle"]),
         Paragraph(f"Periodo Compass: {period} | Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles["ExecSub"]),
     ]
     header = Table([[logo_flow, title]], colWidths=[42 * mm, 210 * mm])
@@ -587,7 +589,7 @@ def _footer(canvas, doc):
     canvas.line(18 * mm, 10 * mm, 279 * mm, 10 * mm)
     canvas.setFont("Helvetica", 7)
     canvas.setFillColor(colors.HexColor("#71808A"))
-    canvas.drawString(18 * mm, 6 * mm, "Starlink Consumption Agent v0.9.3 | periodo Compass + historico SQLite + previsao")
+    canvas.drawString(18 * mm, 6 * mm, f"Starlink Consumption Agent v{APP_VERSION} | periodo Compass + historico SQLite + previsao")
     canvas.drawRightString(279 * mm, 6 * mm, f"Pagina {doc.page}")
     canvas.restoreState()
 
